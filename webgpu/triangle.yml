@@ -1,0 +1,151 @@
+---
+version: '1.0'
+requests:
+- action: create
+  type: canvas
+  id: 0xcc57ad1090231fa4
+  flags: 0
+  content:
+    framebuffer_width: 0
+    framebuffer_height: 0
+    screen_width: 1024
+    screen_height: 768
+- action: create
+  type: graphics
+  desc: 
+  id: 0x1209ead5860ade4d
+  flags: 0
+  content:
+    type: 3
+- action: create
+  type: shader
+  id: 0xe7607b1951c07a98
+  content:
+    type: 1
+    format: glsl
+    size: 201
+    code:
+      mode: base64
+      buffer: |
+
+        #version 450
+        
+        layout(location = 0) in vec3 pos;
+        layout(location = 1) in vec4 color;
+        layout(location = 0) out vec4 out_color;
+        
+        void main()
+        {
+            gl_Position = vec4(pos, 1.0);
+            out_color = color;
+        }
+        
+- action: set
+  type: shader
+  id: 0x1209ead5860ade4d
+  content:
+    shader:0xe7607b1951c07a98
+- action: create
+  type: shader
+  id: 0x7cfe99b6a6ac8c9a
+  content:
+    type: 16
+    format: glsl
+    size: 139
+    code:
+      mode: base64
+      buffer: |
+
+        #version 450
+        
+        layout(location = 0) in vec4 in_color;
+        layout(location = 0) out vec4 out_color;
+        
+        void main()
+        {
+            out_color = in_color;
+        }
+        
+- action: set
+  type: shader
+  id: 0x1209ead5860ade4d
+  content:
+    shader:0x7cfe99b6a6ac8c9a
+- action: set
+  type: primitive
+  id: 0x1209ead5860ade4d
+  content:
+    primitive: 3
+- action: set
+  type: polygon
+  id: 0x1209ead5860ade4d
+  content:
+    polygon: 0
+- action: set
+  type: vertex
+  id: 0x1209ead5860ade4d
+  content:
+    binding_idx: 0
+    stride: 16
+    input_rate: 0
+- action: set
+  type: attr
+  id: 0x1209ead5860ade4d
+  content:
+    binding_idx: 0
+    location: 0
+    format: 106
+    offset: 0
+- action: set
+  type: attr
+  id: 0x1209ead5860ade4d
+  content:
+    binding_idx: 0
+    location: 1
+    format: 37
+    offset: 12
+- action: create
+  type: dat
+  desc: 
+  id: 0x6bb85b021c0f7b95
+  flags: 0
+  content:
+    type: 2
+    size: 48
+- action: bind
+  type: vertex
+  id: 0x1209ead5860ade4d
+  content:
+    binding_idx: 0
+    dat: 0x6bb85b021c0f7b95
+    offset: 0
+- action: upload
+  type: dat
+  id: 0x6bb85b021c0f7b95
+  content:
+    offset: 0
+    size: 48
+    data:
+      mode: hex
+      buffer: 00 00 80 BF 00 00 80 3F 00 00 00 00 FF 00 00 FF 00 00 80 3F 00 00 80 3F 00 00 00 00 00 FF 00 FF 00 00 00 00 00 00 80 BF 00 00 00 00 00 00 FF FF 
+- action: record
+  type: begin
+  id: 0xcc57ad1090231fa4
+- action: record
+  type: viewport
+  id: 0xcc57ad1090231fa4
+  content:
+    offset: [0.000, 0.000]
+    shape: [0.000, 0.000]
+- action: record
+  type: draw
+  id: 0xcc57ad1090231fa4
+  content:
+    graphics: 0x1209ead5860ade4d
+    first_vertex: 0
+    vertex_count: 3
+    first_instance: 0
+    instance_count: 1
+- action: record
+  type: end
+  id: 0xcc57ad1090231fa4
