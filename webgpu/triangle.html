@@ -68,23 +68,6 @@
         new Float32Array(vertexBuffer.getMappedRange()).set(vertices);
         vertexBuffer.unmap();
 
-        // const vertexShaderCode = `
-        //     struct VertexInput {
-        //         @location(0) position : vec2<f32>,
-        //         @location(1) color : vec3<f32>,
-        //     };
-        //     struct VertexOutput {
-        //         @builtin(position) position : vec4<f32>,
-        //         @location(0) color : vec3<f32>,
-        //     };
-        //     @vertex
-        //     fn main(input : VertexInput) -> VertexOutput {
-        //         var output : VertexOutput;
-        //         output.position = vec4(input.position, 0.0, 1.0);
-        //         output.color = input.color;
-        //         return output;
-        //     }
-        // `;
         const vertexShaderCode = await glsl2wgsl(`
         #version 450
 
@@ -100,12 +83,18 @@
         }
         `, "vertex");
 
-        const fragmentShaderCode = `
-            @fragment
-            fn main(@location(0) color : vec3<f32>) -> @location(0) vec4<f32> {
-                return vec4(color, 1.0);
-            }
-        `;
+        const fragmentShaderCode = await glsl2wgsl(`
+        #version 450
+
+        layout(location = 0) in vec3 in_color;
+        layout(location = 0) out vec4 out_color;
+
+        void main()
+        {
+            out_color = vec4(in_color, 1);
+        }
+        `, "fragment");
+
 
         const shaderModule = (code) => device.createShaderModule({ code });
         const pipeline = device.createRenderPipeline({
