@@ -54,27 +54,50 @@
             alphaMode: "opaque"
         });
 
-        const vertices = new Float32Array([
-            -1, -1, 1.0, 0.0, 0.0,
-            0.0, 1, 0.0, 0.0, 1.0,
-            1, -1, 0.0, 1.0, 0.0
-        ]);
+        let vertices = new ArrayBuffer(36);
+        let floatView = new Float32Array(vertices);
+        let uint8View = new Uint8Array(vertices);
+
+        // Positions.
+        const a = 1;
+
+        floatView[0] = -a;
+        floatView[1] = -a;
+
+        floatView[3] = +0;
+        floatView[4] = +a;
+
+        floatView[6] = +a;
+        floatView[7] = -a;
+
+        // Colors.
+        uint8View[12 * 0 + 8 + 0] = 255;
+        uint8View[12 * 0 + 8 + 0 + 3] = 255;
+
+        uint8View[12 * 1 + 8 + 1] = 255;
+        uint8View[12 * 1 + 8 + 1 + 2] = 255;
+
+        uint8View[12 * 2 + 8 + 2] = 255;
+        uint8View[12 * 2 + 8 + 2 + 1] = 255;
 
         const vertexBuffer = device.createBuffer({
             size: vertices.byteLength,
             usage: GPUBufferUsage.VERTEX | GPUBufferUsage.COPY_DST,
             mappedAtCreation: true
         });
-        new Float32Array(vertexBuffer.getMappedRange()).set(vertices);
+
+        // NOTE: need to pass an array view and not the ArrayBuffer here.
+        new Float32Array(vertexBuffer.getMappedRange()).set(floatView);
+
         vertexBuffer.unmap();
 
         const vertexShaderCode = await glsl2wgsl(`
         #version 450
 
         layout(location = 0) in vec2 pos;
-        layout(location = 1) in vec3 color;
+        layout(location = 1) in vec4 color;
 
-        layout(location = 0) out vec3 out_color;
+        layout(location = 0) out vec4 out_color;
 
         void main()
         {
@@ -86,12 +109,12 @@
         const fragmentShaderCode = await glsl2wgsl(`
         #version 450
 
-        layout(location = 0) in vec3 in_color;
+        layout(location = 0) in vec4 in_color;
         layout(location = 0) out vec4 out_color;
 
         void main()
         {
-            out_color = vec4(in_color, 1);
+            out_color = in_color;
         }
         `, "fragment");
 
@@ -103,10 +126,10 @@
                 module: shaderModule(vertexShaderCode),
                 entryPoint: "main",
                 buffers: [{
-                    arrayStride: 5 * 4,
+                    arrayStride: (2 + 1) * 4,
                     attributes: [
                         { shaderLocation: 0, offset: 0, format: "float32x2" },
-                        { shaderLocation: 1, offset: 2 * 4, format: "float32x3" }
+                        { shaderLocation: 1, offset: 2 * 4, format: "unorm8x4" }
                     ]
                 }]
             },
