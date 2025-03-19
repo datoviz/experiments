@@ -1,5 +1,6 @@
 // Imports.
 #include <datoviz_protocol.h>
+#include <datoviz_types.h>
 #include <stddef.h>
 
 
@@ -8,11 +9,22 @@
 
 
 
-// Structure holding the vertex data.
 struct Vertex
 {
     vec3 pos;
     cvec4 color;
+};
+
+
+
+struct Context
+{
+    DvzBatch* batch;
+    DvzId vertex_id;
+    float w;
+    float h;
+    float x;
+    float y;
 };
 
 
@@ -97,7 +109,8 @@ static DvzId create_pipeline(DvzBatch* batch)
 
 
 // In normalized device coordinates (whole window = [-1..+1]).
-static void upload_rectangle(DvzBatch* batch, DvzId dat_id, vec2 offset, vec2 shape, cvec4 color)
+static void
+upload_rectangle(DvzBatch* batch, DvzId vertex_id, vec2 offset, vec2 shape, cvec4 color)
 {
     float x = offset[0];
     float y = offset[1];
@@ -122,12 +135,27 @@ static void upload_rectangle(DvzBatch* batch, DvzId dat_id, vec2 offset, vec2 sh
         {{x + w, y, 0}, {r, g, b, a}},
 
     };
-    DvzRequest req = dvz_upload_dat(batch, dat_id, 0, sizeof(data), data, 0);
+    DvzRequest req = dvz_upload_dat(batch, vertex_id, 0, sizeof(data), data, 0);
 }
 
 
 
-// Entry point.
+static void _on_timer(DvzApp* app, DvzId window_id, DvzTimerEvent ev)
+{
+    struct Context* ctx = (struct Context*)ev.user_data;
+    assert(ctx != NULL);
+
+    // Reupload the vertex data with a different color at every timer tick.
+    upload_rectangle(
+        ctx->batch, ctx->vertex_id, (vec2){ctx->x, ctx->y}, (vec2){ctx->w, ctx->h},
+        (ev.step_idx % 2) == 0 ? (cvec4){255, 0, 0, 255} : (cvec4){0, 255, 0, 255});
+
+    // Submit the latest batch request(s).
+    dvz_app_submit(app);
+}
+
+
+
 int main(int argc, char** argv)
 {
     // Create app object.
@@ -149,9 +177,11 @@ int main(int argc, char** argv)
 
 
     // Create the vertex buffer dat.
-    req = dvz_create_dat(batch, DVZ_BUFFER_TYPE_VERTEX, 3 * sizeof(struct Vertex), 0);
-    DvzId dat_id = req.id;
-    req = dvz_bind_vertex(batch, graphics_id, 0, dat_id, 0);
+    req = dvz_create_dat(
+        batch, DVZ_BUFFER_TYPE_VERTEX, 3 * sizeof(struct Vertex),
+        DVZ_DAT_FLAGS_PERSISTENT_STAGING);
+    DvzId vertex_id = req.id;
+    req = dvz_bind_vertex(batch, graphics_id, 0, vertex_id, 0);
 
     // Upload a rectangle to the vertex buffer.
     float w = 100.0;
@@ -159,7 +189,7 @@ int main(int argc, char** argv)
     float x = 1.0 - 2 * w / WIDTH;
     float y = 1.0 - 2 * h / HEIGHT;
 
-    upload_rectangle(batch, dat_id, (vec2){x, y}, (vec2){w, h}, (cvec4){0, 255, 255, 255});
+    upload_rectangle(batch, vertex_id, (vec2){x, y}, (vec2){w, h}, (cvec4){0, 255, 255, 255});
 
 
     // Commands.
@@ -168,6 +198,18 @@ int main(int argc, char** argv)
     dvz_record_viewport(batch, canvas_id, DVZ_DEFAULT_VIEWPORT, DVZ_DEFAULT_VIEWPORT);
     dvz_record_draw(batch, canvas_id, graphics_id, 0, n_vertices, 0, 1);
     dvz_record_end(batch, canvas_id);
+
+
+    struct Context ctx = {
+        .batch = batch,
+        .vertex_id = vertex_id, //
+        .w = w,
+        .h = h,
+        .x = x,
+        .y = y};
+    float dt = 1. / 10; // 10 Hz update
+    dvz_app_timer(app, 0, dt, 0);
+    dvz_app_ontimer(app, _on_timer, &ctx);
 
 
 
