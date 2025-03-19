@@ -82,9 +82,6 @@ def add_mesh(batch, panel, pos, idx, color):
     dvz.mesh_normal(visual, 0, nv, normals, 0)
     dvz.mesh_index(visual, 0, ni, idx, 0)
 
-    dvz.mesh_light_pos(visual, vec3(-1, +1, +10))
-    dvz.mesh_light_params(visual, vec4(.5, .5, .5, 16))
-
     dvz.panel_visual(panel, visual, 0)
 
     return visual
