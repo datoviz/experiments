@@ -1,4 +1,5 @@
-gcc -I/home/cyrille/GIT/Viz/datoviz/include \
-    -I/home/cyrille/GIT/Viz/datoviz/build/_deps/cglm-src/include/ \
-    -L/home/cyrille/GIT/Viz/datoviz/build \
+DATOVIZ_FOLDER="../../datoviz"
+gcc -I$DATOVIZ_FOLDER/include \
+    -I$DATOVIZ_FOLDER/build/_deps/cglm-src/include/ \
+    -L$DATOVIZ_FOLDER/build \
     slimshady.c -o slimshady -ldatoviz
