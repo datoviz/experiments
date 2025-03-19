@@ -3,12 +3,16 @@
 #include <stddef.h>
 
 
+#define WIDTH  960
+#define HEIGHT 400
+
+
 
 // Structure holding the vertex data.
 struct Vertex
 {
     vec3 pos;
-    DvzColor color;
+    cvec4 color;
 };
 
 
@@ -92,6 +96,37 @@ static DvzId create_pipeline(DvzBatch* batch)
 
 
 
+// In normalized device coordinates (whole window = [-1..+1]).
+static void upload_rectangle(DvzBatch* batch, DvzId dat_id, vec2 offset, vec2 shape, cvec4 color)
+{
+    float x = offset[0];
+    float y = offset[1];
+    float w = shape[0];
+    float h = shape[1];
+
+    uint8_t r = color[0];
+    uint8_t g = color[1];
+    uint8_t b = color[2];
+    uint8_t a = color[3];
+
+    struct Vertex data[] = {
+
+        // lower triangle
+        {{x, y, 0}, {r, g, b, a}},
+        {{x + w, y, 0}, {r, g, b, a}},
+        {{x, y + h, 0}, {r, g, b, a}}, //
+
+        // upper triangle
+        {{x + w, y + h, 0}, {r, g, b, a}},
+        {{x, y + h, 0}, {r, g, b, a}},
+        {{x + w, y, 0}, {r, g, b, a}},
+
+    };
+    DvzRequest req = dvz_upload_dat(batch, dat_id, 0, sizeof(data), data, 0);
+}
+
+
+
 // Entry point.
 int main(int argc, char** argv)
 {
@@ -102,12 +137,8 @@ int main(int argc, char** argv)
 
 
 
-    // Constants.
-    uint32_t width = 1024;
-    uint32_t height = 768;
-
     // Create a canvas.
-    req = dvz_create_canvas(batch, width, height, DVZ_DEFAULT_CLEAR_COLOR, 0);
+    req = dvz_create_canvas(batch, WIDTH, HEIGHT, DVZ_DEFAULT_CLEAR_COLOR, 0);
     DvzId canvas_id = req.id;
 
 
@@ -120,24 +151,22 @@ int main(int argc, char** argv)
     // Create the vertex buffer dat.
     req = dvz_create_dat(batch, DVZ_BUFFER_TYPE_VERTEX, 3 * sizeof(struct Vertex), 0);
     DvzId dat_id = req.id;
-
-    // Bind the vertex buffer dat to the graphics pipe.
     req = dvz_bind_vertex(batch, graphics_id, 0, dat_id, 0);
 
-    // Upload the triangle data.
-    struct Vertex data[] = {
-        {{-1, +1, 0}, {255, 0, 0, 255}},
-        {{+1, +1, 0}, {0, 255, 0, 255}},
-        {{+0, -1, 0}, {0, 0, 255, 255}},
-    };
-    req = dvz_upload_dat(batch, dat_id, 0, sizeof(data), data, 0);
+    // Upload a rectangle to the vertex buffer.
+    float w = 100.0;
+    float h = 100.0;
+    float x = 1.0 - 2 * w / WIDTH;
+    float y = 1.0 - 2 * h / HEIGHT;
 
+    upload_rectangle(batch, dat_id, (vec2){x, y}, (vec2){w, h}, (cvec4){0, 255, 255, 255});
 
 
     // Commands.
+    uint32_t n_vertices = 6; // 2 triangles for the rectangle
     dvz_record_begin(batch, canvas_id);
     dvz_record_viewport(batch, canvas_id, DVZ_DEFAULT_VIEWPORT, DVZ_DEFAULT_VIEWPORT);
-    dvz_record_draw(batch, canvas_id, graphics_id, 0, 3, 0, 1);
+    dvz_record_draw(batch, canvas_id, graphics_id, 0, n_vertices, 0, 1);
     dvz_record_end(batch, canvas_id);
 
 
