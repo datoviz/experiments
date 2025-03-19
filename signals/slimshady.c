@@ -93,7 +93,9 @@ static void* read_file(const char* filename, DvzSize* size)
     if (size != NULL)
         *size = length;
     fseek(f, 0, SEEK_SET);
-    buffer = (void*)calloc(1, (size_t)length);
+    // NOTE: for safety, add a zero byte at the end to ensure a text file is loaded into a
+    // 0-terminated string.
+    buffer = (void*)calloc((size_t)length + 1, 1);
     fread(buffer, 1, (size_t)length, f);
     fclose(f);
 
@@ -168,10 +170,10 @@ static DvzId create_sphere_pipeline(DvzBatch* batch)
     set_shaders(batch, graphics_id, "slimshady_dvz.vert", "slimshady_dvz.frag");
 
     // Primitive topology.
-    // dvz_set_primitive(batch, graphics_id, DVZ_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST);
-    dvz_set_primitive(batch, graphics_id, DVZ_PRIMITIVE_TOPOLOGY_POINT_LIST);
+    dvz_set_primitive(batch, graphics_id, DVZ_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST);
+    // dvz_set_primitive(batch, graphics_id, DVZ_PRIMITIVE_TOPOLOGY_POINT_LIST);
     dvz_set_blend(batch, graphics_id, DVZ_BLEND_STANDARD);
-    dvz_set_cull(batch, graphics_id, DVZ_CULL_MODE_BACK);
+    // dvz_set_cull(batch, graphics_id, DVZ_CULL_MODE_BACK);
     dvz_set_front(batch, graphics_id, DVZ_FRONT_FACE_CLOCKWISE);
 
     // Polygon mode.
@@ -355,13 +357,12 @@ int main(int argc, char** argv)
         .texOffset = {0, 0},
         .texSize = {30, 30},
 
-        .maxColor = {1},
-        .minColor = {0},
+        .maxColor = {1, 1, 1, 1},
+        .minColor = {0, 0, 0, 0},
     };
     memcpy(ubo_data.model, model_data, sizeof(mat4));
     memcpy(ubo_data.view, view_data, sizeof(mat4));
     memcpy(ubo_data.projection, projection_data, sizeof(mat4));
-    // glm_mat4_print(ubo_data.projection, stdout);
 
     req = dvz_upload_dat(batch, ubo, 0, sizeof(struct SphereUniform), &ubo_data, 0);
 
@@ -372,10 +373,10 @@ int main(int argc, char** argv)
 
 
     // Texture.
-    req = dvz_create_tex(batch, 2, DVZ_FORMAT_R8G8B8A8_UINT, (uvec3){3, 3, 1}, 0);
+    req = dvz_create_tex(batch, 2, DVZ_FORMAT_R8G8B8A8_UNORM, (uvec3){3, 3, 1}, 0);
     DvzId tex = req.id;
 
-    req = dvz_create_sampler(batch, DVZ_FILTER_LINEAR, DVZ_SAMPLER_ADDRESS_MODE_CLAMP_TO_BORDER);
+    req = dvz_create_sampler(batch, DVZ_FILTER_NEAREST, DVZ_SAMPLER_ADDRESS_MODE_CLAMP_TO_BORDER);
     DvzId sampler = req.id;
 
     dvz_bind_tex(batch, sphere_graphics, 1, tex, sampler, (uvec3){0, 0, 0});
@@ -383,7 +384,9 @@ int main(int argc, char** argv)
     DvzSize tex_size = 0;
     char* img = read_file("img", &tex_size);
     assert(tex_size == 3 * 3 * 4 * 1);
-    req = dvz_upload_tex(batch, tex, (uvec3){0, 0, 0}, (uvec3){3, 3, 0}, tex_size, img, 0);
+    // DEBUG
+    // memset(img, 255, tex_size);
+    req = dvz_upload_tex(batch, tex, (uvec3){0, 0, 0}, (uvec3){3, 3, 1}, tex_size, img, 0);
     FREE(img);
 
 
@@ -396,12 +399,12 @@ int main(int argc, char** argv)
     // Viewport.
     dvz_record_viewport(batch, canvas_id, DVZ_DEFAULT_VIEWPORT, DVZ_DEFAULT_VIEWPORT);
 
-    // Square.
-    dvz_record_draw(batch, canvas_id, square_graphics, 0, square_vertex_count, 0, 1);
-
     // Sphere.
     dvz_record_draw_indexed(batch, canvas_id, sphere_graphics, 0, 0, sphere_index_count, 0, 1);
     // dvz_record_draw(batch, canvas_id, sphere_graphics, 0, sphere_vertex_count, 0, 1);
+
+    // Square.
+    dvz_record_draw(batch, canvas_id, square_graphics, 0, square_vertex_count, 0, 1);
 
     dvz_record_end(batch, canvas_id);
 
@@ -410,16 +413,16 @@ int main(int argc, char** argv)
     // Timer.
     // --------------------------------------------------------------------------------------------
 
-    // struct Context ctx = {
-    //     .batch = batch,
-    //     .square_vertex = square_vertex, //
-    //     .w = w,
-    //     .h = h,
-    //     .x = x,
-    //     .y = y};
-    // float dt = 1. / 10; // 10 Hz update
-    // dvz_app_timer(app, 0, dt, 0);
-    // dvz_app_ontimer(app, _on_timer, &ctx);
+    struct Context ctx = {
+        .batch = batch,
+        .square_vertex = square_vertex, //
+        .w = w,
+        .h = h,
+        .x = x,
+        .y = y};
+    float dt = 1. / 10; // 10 Hz update
+    dvz_app_timer(app, 0, dt, 0);
+    dvz_app_ontimer(app, _on_timer, &ctx);
 
 
 
