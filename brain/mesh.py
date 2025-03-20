@@ -5,7 +5,7 @@ import urllib.request
 import numpy as np
 from pywavefront import Wavefront
 import datoviz as dvz
-from datoviz import vec2, vec3, vec4, S_, A_
+from datoviz import vec2, ivec3, vec3, vec4, S_, A_
 
 
 CCF_URL = 'http://download.alleninstitute.org/informatics-archive/current-release/mouse_ccf/annotation/ccf_2017/structure_meshes/'
@@ -57,10 +57,6 @@ def load_obj(path):
     obj = Wavefront(path, collect_faces=True, create_materials=True)
     pos = np.array(obj.vertices)
     idx = np.array(obj.mesh_list[0].faces)
-
-    # pos -= pos.mean(axis=0)
-    # pos /= np.abs(pos).max()
-
     return pos, idx
 
 
@@ -120,12 +116,14 @@ def add_volume(batch, panel):
 
     dvz.volume_bounds(
         visual,
-        vec2(norm_z(zmin), norm_z(zmax)),
         vec2(norm_x(xmin), norm_x(xmax)),
         vec2(norm_y(ymin), norm_y(ymax)),
+        vec2(norm_z(zmin), norm_z(zmax)),
         )
 
+    dvz.volume_texcoords(visual, vec3(0, 1, 0), vec3(1, 0, 1))
     dvz.volume_transfer(visual, vec4(.5, 0, 0, 0))
+    dvz.volume_permutation(visual, ivec3(2, 0, 1))
     dvz.panel_visual(panel, visual, 0)
 
     return visual
@@ -172,7 +170,7 @@ if __name__ == '__main__':
     xx = norm_x(x)
     yy = norm_y(y)
     zz = norm_z(z)
-    p2 = np.c_[zz, xx, yy].copy()
+    p2 = np.c_[xx, yy, zz].copy()
 
 
     # Start the app.
@@ -187,7 +185,7 @@ if __name__ == '__main__':
     add_mesh(batch, panel, p2, idx, color)
 
     # Initial arcball angles.
-    dvz.arcball_initial(arcball, vec3(.75, -.86, +1.67))
+    dvz.arcball_initial(arcball, vec3(-.93, .01, 2.36))
     camera = dvz.panel_camera(panel, 0)
     dvz.arcball_gui(arcball, app, dvz.figure_id(figure), panel)
     dvz.camera_initial(camera, vec3(0, 0, 1.5), vec3(0, 0, 0), vec3(0, 1, 0))
