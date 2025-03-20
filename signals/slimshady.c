@@ -271,8 +271,23 @@ int main(int argc, char** argv)
     // Canvas.
     // --------------------------------------------------------------------------------------------
 
-    req = dvz_create_canvas(batch, WIDTH, HEIGHT, DVZ_DEFAULT_CLEAR_COLOR, 0);
+    req = dvz_create_canvas(batch, WIDTH, HEIGHT, (cvec4){127, 127, 127, 255}, 0);
     DvzId canvas_id = req.id;
+
+
+
+    // Background.
+    // --------------------------------------------------------------------------------------------
+
+    // Create the graphics pipelines.
+    DvzId background_graphics = create_square_pipeline(batch);
+    uint32_t background_vertex_count = 6; // 2 triangles for the rectangle
+    req = dvz_create_dat(
+        batch, DVZ_BUFFER_TYPE_VERTEX, background_vertex_count * sizeof(struct SquareVertex), 0);
+    DvzId background_vertex = req.id;
+    req = dvz_bind_vertex(batch, background_graphics, 0, background_vertex, 0);
+    upload_rectangle(
+        batch, background_vertex, (vec2){-1, -1}, (vec2){+2, +2}, (cvec4){127, 127, 127, 255});
 
 
 
@@ -398,6 +413,9 @@ int main(int argc, char** argv)
 
     // Viewport.
     dvz_record_viewport(batch, canvas_id, DVZ_DEFAULT_VIEWPORT, DVZ_DEFAULT_VIEWPORT);
+
+    // Background.
+    dvz_record_draw(batch, canvas_id, background_graphics, 0, background_vertex_count, 0, 1);
 
     // Sphere.
     dvz_record_draw_indexed(batch, canvas_id, sphere_graphics, 0, 0, sphere_index_count, 0, 1);
