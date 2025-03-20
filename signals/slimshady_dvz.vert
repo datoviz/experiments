@@ -68,7 +68,7 @@ void main()
     UV = (uvTrans * vec3(vertexUV.xy, 1.0f)).xy;
 
     // DEBUG
-    UV = vertexUV;
+    // UV = vertexUV;
 }
 
 

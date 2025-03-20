@@ -1,8 +1,8 @@
-
+import gzip
 from pathlib import Path
 import numpy as np
 import datoviz as dvz
-from datoviz import vec3, vec4, S_, A_
+from datoviz import vec2, vec3, vec4, S_, A_
 
 
 MOUSE_W = 320
@@ -11,8 +11,9 @@ MOUSE_D = 528
 
 
 def load_volume(batch):
-    path = '../../datoviz/data/volumes/allen_mouse_brain_rgba.npy'
-    volume = np.load(path)
+    path = '../../datoviz/data/volumes/allen_mouse_brain_rgba.npy.gz'
+    with gzip.open(path, 'rb') as f:
+        volume = np.load(f)
     format = dvz.FORMAT_R8G8B8A8_UNORM
     tex = dvz.tex_volume(batch, format, MOUSE_W, MOUSE_H, MOUSE_D, A_(volume))
     return tex
@@ -20,10 +21,10 @@ def load_volume(batch):
 
 def add_volume(batch, panel):
     visual = dvz.volume(batch, dvz.VOLUME_FLAGS_RGBA)
-    dvz.volume_alloc(visual, 1)
 
     scaling = 1. / MOUSE_D
-    dvz.volume_size(visual, MOUSE_W * scaling, MOUSE_H * scaling, 1)
+    x, y, z = MOUSE_W * scaling, MOUSE_H * scaling, 1
+    dvz.volume_bounds(visual, vec2(-x, +x), vec2(-y, +y), vec2(-z, +z))
     dvz.panel_visual(panel, visual, 0)
 
     return visual

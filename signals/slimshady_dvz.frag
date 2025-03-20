@@ -45,4 +45,7 @@ void main()
 
     color = texture(myTextureSampler, UV).rgba;
     color = color * (ubo.maxColor - ubo.minColor) + ubo.minColor;
+
+    // DEBUG
+    color = vec4(UV, 0, 1);
 }
