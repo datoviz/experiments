@@ -179,6 +179,12 @@ def ongui(app, fid, ev):
                 vec2(norm_z(zmin), norm_z(zmax)),
             )
             dvz.volume_texcoords(visual, vec3(0, 1, 0), vec3(1, s, 1))
+
+            # NOTE: this is sort of working (displaying the opaque slice) but we'll need
+            # to implement multipass rendering to enable depth testing and proper transparency
+            # so this works fully.
+            # if s > 0:
+            #     dvz.volume_slice(visual, 4)
     dvz.gui_end()
 
 
