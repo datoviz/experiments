@@ -1,3 +1,4 @@
+import ctypes
 import gzip
 from pathlib import Path
 import urllib.request
@@ -5,7 +6,7 @@ import urllib.request
 import numpy as np
 from pywavefront import Wavefront
 import datoviz as dvz
-from datoviz import vec2, ivec3, vec3, vec4, S_, A_
+from datoviz import vec2, ivec3, vec3, vec4, S_, A_, V_
 
 
 CCF_URL = 'http://download.alleninstitute.org/informatics-archive/current-release/mouse_ccf/annotation/ccf_2017/structure_meshes/'
@@ -26,6 +27,10 @@ nx, ny, nz = a.bc.nxyz  # 456, 528, 320
 xc = .5 * (xmin + xmax)
 yc = .5 * (ymin + ymax)
 zc = .5 * (zmin + zmax)
+
+dx = xmax - xmin
+dy = ymax - ymin
+dz = zmax - zmin
 
 
 def norm_x(u):
@@ -112,6 +117,7 @@ def load_volume(batch):
 
 
 def add_volume(batch, panel):
+    global visual
     visual = dvz.volume(batch, dvz.VOLUME_FLAGS_RGBA)
 
     dvz.volume_bounds(
@@ -154,6 +160,28 @@ def add_mesh(batch, panel, pos, idx, color):
     return visual
 
 
+visual = None
+slider = V_(0, ctypes.c_float)
+
+
+@dvz.gui
+def ongui(app, fid, ev):
+    dvz.gui_size(vec2(170, 110))
+    dvz.gui_begin(S_("Slider GUI"), 0)
+    with slider:
+        if dvz.gui_slider(S_("Slider"), 0, 1, slider.P_):
+            s = slider.value
+
+            dvz.volume_bounds(
+                visual,
+                vec2(norm_x(xmin), norm_x(xmax)),
+                vec2(norm_y(ymin + s * dy), norm_y(ymax)),
+                vec2(norm_z(zmin), norm_z(zmax)),
+            )
+            dvz.volume_texcoords(visual, vec3(0, 1, 0), vec3(1, s, 1))
+    dvz.gui_end()
+
+
 if __name__ == '__main__':
     region_idx = 128  # 315
     m = load_mesh(region_idx=region_idx)
@@ -190,6 +218,8 @@ if __name__ == '__main__':
     dvz.arcball_gui(arcball, app, dvz.figure_id(figure), panel)
     dvz.camera_initial(camera, vec3(0, 0, 1.5), vec3(0, 0, 0), vec3(0, 1, 0))
     dvz.panel_update(panel)
+
+    dvz.app_gui(app, dvz.figure_id(figure), ongui, None)
 
     # Run and exit the app.
     run(app, scene)
