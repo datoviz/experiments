@@ -13,18 +13,19 @@ layout(location = 0) out vec4 color;
 // fragment shader stuff here).
 layout(std140, binding = 0) uniform Uniform
 {
+    // WARNING: the variables should be sorted by decreasing size to avoid alignment issues.
     mat4 view;
     mat4 model;
     mat4 projection;
-    /* float viewAngle;*/ /* rotation of view, degrees */
-    /* vec2 pos;*/        /* position of layer [azimuth, altitude], degrees */
-    float texAngle;       /* rotate the texture, degrees */
-    vec2 texOffset;       /* offset the texture, degrees */
-    vec2 texSize;         /* size of the texture, degrees */
-
-    // For fragment shader.
     vec4 maxColor;
     vec4 minColor;
+    vec2 texOffset; /* offset the texture, degrees */
+    vec2 texSize;   /* size of the texture, degrees */
+    float texAngle; /* rotate the texture, degrees */
+
+    // For fragment shader.
+    /* float viewAngle;*/ /* rotation of view, degrees */
+    /* vec2 pos;*/        /* position of layer [azimuth, altitude], degrees */
 }
 ubo;
 layout(binding = 1) uniform sampler2D myTextureSampler;
@@ -47,5 +48,5 @@ void main()
     color = color * (ubo.maxColor - ubo.minColor) + ubo.minColor;
 
     // DEBUG
-    color = vec4(UV, 0, 1);
+    // color = vec4(uv, 1, 1);
 }

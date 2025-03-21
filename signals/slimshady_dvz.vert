@@ -22,18 +22,19 @@ layout(location = 0) out vec2 UV; // varying, with "out"
 // fragment shader stuff here).
 layout(std140, binding = 0) uniform Uniform
 {
+    // WARNING: the variables should be sorted by decreasing size to avoid alignment issues.
     mat4 view;
     mat4 model;
     mat4 projection;
-    /* float viewAngle;*/ /* rotation of view, degrees */
-    /* vec2 pos;*/        /* position of layer [azimuth, altitude], degrees */
-    float texAngle;       /* rotate the texture, degrees */
-    vec2 texOffset;       /* offset the texture, degrees */
-    vec2 texSize;         /* size of the texture, degrees */
-
-    // For fragment shader.
     vec4 maxColor;
     vec4 minColor;
+    vec2 texOffset; /* offset the texture, degrees */
+    vec2 texSize;   /* size of the texture, degrees */
+    float texAngle; /* rotate the texture, degrees */
+
+    // For fragment shader.
+    /* float viewAngle;*/ /* rotation of view, degrees */
+    /* vec2 pos;*/        /* position of layer [azimuth, altitude], degrees */
 }
 ubo;
 layout(binding = 1) uniform sampler2D myTextureSampler;
@@ -46,13 +47,15 @@ void main()
     /*mat4 view = rot3(zax, posRad.y)*rot3(yax, posRad.x)*rot3(xax, viewRad);*/
     /*mat4 view = rot3(yax, posRad.x)*rot3(zax, posRad.y)*rot3(xax, viewRad);*/
 
-
-
     float texAngle = ubo.texAngle;
     vec2 texOffset = ubo.texOffset;
     vec2 texSize = ubo.texSize;
 
     gl_Position = ubo.projection * ubo.view * ubo.model * vec4(vertexPos.xyz, 1.0f);
+
+    // Vulkan conversion.
+    gl_Position.y *= -1.0;
+    gl_Position.z = (gl_Position.z + gl_Position.w) * 0.5;
 
     // DEBUG
     // gl_Position = vec4(vertexPos.xyz, 1.0f);
@@ -64,7 +67,6 @@ void main()
     vec2 texTrans = vec2(-texOffset.x / safeTexSize.x, -texOffset.y / safeTexSize.y);
     mat3 uvTrans = trans2(vec2(0.5) + texTrans) * scale2(texScale) * rot2(texAngle * pi / 180) *
                    scale2(vec2(2.0, 1.0)) * trans2(vec2(-0.5));
-
     UV = (uvTrans * vec3(vertexUV.xy, 1.0f)).xy;
 
     // DEBUG

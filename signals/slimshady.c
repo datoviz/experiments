@@ -46,15 +46,11 @@ struct SphereUniform
     mat4 view;
     mat4 model;
     mat4 projection;
-    /* float viewAngle;*/ /* rotation of view, degrees */
-    /* vec2 pos;*/        /* position of layer [azimuth, altitude], degrees */
-    float texAngle;       /* rotate the texture, degrees */
-    vec2 texOffset;       /* offset the texture, degrees */
-    vec2 texSize;         /* size of the texture, degrees */
-
-    // For fragment shader.
     vec4 maxColor;
     vec4 minColor;
+    vec2 texOffset; /* offset the texture, degrees */
+    vec2 texSize;   /* size of the texture, degrees */
+    float texAngle; /* rotate the texture, degrees */
 };
 
 
@@ -237,19 +233,19 @@ upload_rectangle(DvzBatch* batch, DvzId square_vertex, vec2 offset, vec2 shape, 
 /*  Callbacks                                                                                    */
 /*************************************************************************************************/
 
-static void _on_timer(DvzApp* app, DvzId window_id, DvzTimerEvent ev)
-{
-    struct Context* ctx = (struct Context*)ev.user_data;
-    assert(ctx != NULL);
+// static void _on_timer(DvzApp* app, DvzId window_id, DvzTimerEvent ev)
+// {
+//     struct Context* ctx = (struct Context*)ev.user_data;
+//     assert(ctx != NULL);
 
-    // Reupload the vertex data with a different color at every timer tick.
-    upload_rectangle(
-        ctx->batch, ctx->square_vertex, (vec2){ctx->x, ctx->y}, (vec2){ctx->w, ctx->h},
-        (ev.step_idx % 2) == 0 ? (cvec4){255, 0, 0, 255} : (cvec4){0, 255, 0, 255});
+//     // Reupload the vertex data with a different color at every timer tick.
+//     upload_rectangle(
+//         ctx->batch, ctx->square_vertex, (vec2){ctx->x, ctx->y}, (vec2){ctx->w, ctx->h},
+//         (ev.step_idx % 2) == 0 ? (cvec4){255, 0, 0, 255} : (cvec4){0, 255, 0, 255});
 
-    // Submit the latest batch request(s).
-    dvz_app_submit(app);
-}
+//     // Submit the latest batch request(s).
+//     dvz_app_submit(app);
+// }
 
 
 
@@ -287,7 +283,7 @@ int main(int argc, char** argv)
     DvzId background_vertex = req.id;
     req = dvz_bind_vertex(batch, background_graphics, 0, background_vertex, 0);
     upload_rectangle(
-        batch, background_vertex, (vec2){-1, -1}, (vec2){+2, +2}, (cvec4){127, 127, 127, 255});
+        batch, background_vertex, (vec2){-1, -1}, (vec2){+2, +2}, (cvec4){0, 255, 255, 255});
 
 
 
@@ -378,8 +374,9 @@ int main(int argc, char** argv)
     memcpy(ubo_data.model, model_data, sizeof(mat4));
     memcpy(ubo_data.view, view_data, sizeof(mat4));
     memcpy(ubo_data.projection, projection_data, sizeof(mat4));
+    glm_vec2_print(ubo_data.texSize, stdout);
 
-    req = dvz_upload_dat(batch, ubo, 0, sizeof(struct SphereUniform), &ubo_data, 0);
+    req = dvz_upload_dat(batch, ubo, 0, sizeof(ubo_data), &ubo_data, 0);
 
     FREE(model_data);
     FREE(view_data);
@@ -399,8 +396,6 @@ int main(int argc, char** argv)
     DvzSize tex_size = 0;
     char* img = read_file("img", &tex_size);
     assert(tex_size == 3 * 3 * 4 * 1);
-    // DEBUG
-    // memset(img, 255, tex_size);
     req = dvz_upload_tex(batch, tex, (uvec3){0, 0, 0}, (uvec3){3, 3, 1}, tex_size, img, 0);
     FREE(img);
 
@@ -431,16 +426,16 @@ int main(int argc, char** argv)
     // Timer.
     // --------------------------------------------------------------------------------------------
 
-    struct Context ctx = {
-        .batch = batch,
-        .square_vertex = square_vertex, //
-        .w = w,
-        .h = h,
-        .x = x,
-        .y = y};
-    float dt = 1. / 10; // 10 Hz update
-    dvz_app_timer(app, 0, dt, 0);
-    dvz_app_ontimer(app, _on_timer, &ctx);
+    // struct Context ctx = {
+    //     .batch = batch,
+    //     .square_vertex = square_vertex, //
+    //     .w = w,
+    //     .h = h,
+    //     .x = x,
+    //     .y = y};
+    // float dt = 1. / 10; // 10 Hz update
+    // dvz_app_timer(app, 0, dt, 0);
+    // dvz_app_ontimer(app, _on_timer, &ctx);
 
 
 
