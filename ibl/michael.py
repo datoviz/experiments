@@ -1,7 +1,7 @@
 import math
 import numpy as np
 import datoviz as dvz
-from datoviz import dvec2
+from datoviz import Out
 
 
 def make_texture(batch, image):
@@ -34,12 +34,12 @@ def add_image(x, y, w, h, image, batch=None, panel=None):
 
 
 def get_extent():
-    print("get extent")
-    xlim = dvec2(0, 0)
-    ylim = dvec2(0, 0)
-    dvz.panzoom_xlim(panzoom, ref, xlim)
-    dvz.panzoom_ylim(panzoom, ref, ylim)
-    print(xlim, ylim)
+    xmin = Out(0.0, 'double')
+    xmax = Out(0.0, 'double')
+    ymin = Out(0.0, 'double')
+    ymax = Out(0.0, 'double')
+    dvz.panzoom_bounds(panzoom, ref, xmin, xmax, ymin, ymax)
+    print(xmin, xmax, ymin, ymax)
 
 
 path = 'concat_ephysFalse.npy'
@@ -62,7 +62,8 @@ w = 2
 y = 1
 row = 4096  # maximum texture size
 h = 2 * row / float(data.shape[0])
-for i in range(math.floor(data.shape[0] / float(row)) + 1):
+n = math.floor(data.shape[0] / float(row))
+for i in range(n):
     add_image(x, y - i * h, w, h,
               data[i*row:(i+1)*row, :], batch=batch, panel=panel)
 
