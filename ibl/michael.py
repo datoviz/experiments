@@ -39,12 +39,12 @@ def get_extent():
     ymin = Out(0.0, 'double')
     ymax = Out(0.0, 'double')
     dvz.panzoom_bounds(panzoom, ref, xmin, xmax, ymin, ymax)
-    print(xmin, xmax, ymin, ymax)
 
 
 path = 'concat_ephysFalse.npy'
 r = np.load(path, allow_pickle=True).flat[0]
 data = r['concat_z'][r['isort']]
+print(f"Loaded data with shape {data.shape}")
 
 cols_beryl = np.load('cols_beryl.npy')
 cols_beryl = cols_beryl[r['isort']]
@@ -71,13 +71,10 @@ ref = dvz.ref(0)
 dvz.ref_set(ref, dvz.DIM_X, 0, 1)
 dvz.ref_set(ref, dvz.DIM_Y, 0, 1)
 
-
-@dvz.frame
-def on_frame(app, window_id, ev):
-    get_extent()
-
-
-dvz.app_onframe(app, on_frame, None)
+# @dvz.frame
+# def on_frame(app, window_id, ev):
+#     get_extent()
+# dvz.app_onframe(app, on_frame, None)
 
 dvz.scene_run(scene, app, 0)
 dvz.scene_destroy(scene)
