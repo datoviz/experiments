@@ -1,6 +1,7 @@
 import math
 import numpy as np
 import datoviz as dvz
+from datoviz import dvec2
 
 
 def make_texture(batch, image):
@@ -32,6 +33,15 @@ def add_image(x, y, w, h, image, batch=None, panel=None):
     dvz.panel_visual(panel, visual, 0)
 
 
+def get_extent():
+    print("get extent")
+    xlim = dvec2(0, 0)
+    ylim = dvec2(0, 0)
+    dvz.panzoom_xlim(panzoom, ref, xlim)
+    dvz.panzoom_ylim(panzoom, ref, ylim)
+    print(xlim, ylim)
+
+
 path = 'concat_ephysFalse.npy'
 r = np.load(path, allow_pickle=True).flat[0]
 data = r['concat_z'][r['isort']]
@@ -39,7 +49,7 @@ data = r['concat_z'][r['isort']]
 cols_beryl = np.load('cols_beryl.npy')
 cols_beryl = cols_beryl[r['isort']]
 
-FIG_SIZE = 1024
+FIG_SIZE = 800
 app = dvz.app(dvz.APP_FLAGS_WHITE_BACKGROUND)
 batch = dvz.app_batch(app)
 scene = dvz.scene(batch)
@@ -53,8 +63,22 @@ y = 1
 row = 4096  # maximum texture size
 h = 2 * row / float(data.shape[0])
 for i in range(math.floor(data.shape[0] / float(row)) + 1):
-    add_image(x, y - i * h, w, h, data[i*row:(i+1)*row, :], batch=batch, panel=panel)
+    add_image(x, y - i * h, w, h,
+              data[i*row:(i+1)*row, :], batch=batch, panel=panel)
+
+ref = dvz.ref(0)
+dvz.ref_set(ref, dvz.DIM_X, 0, 1)
+dvz.ref_set(ref, dvz.DIM_Y, 0, 1)
+
+
+@dvz.frame
+def on_frame(app, window_id, ev):
+    get_extent()
+
+
+dvz.app_onframe(app, on_frame, None)
 
 dvz.scene_run(scene, app, 0)
 dvz.scene_destroy(scene)
 dvz.app_destroy(app)
+dvz.ref_destroy(ref)
