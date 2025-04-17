@@ -9,11 +9,12 @@ sample_rate = 2500
 dtype = np.float16
 vmin = -5e-4
 vmax = +5e-4
-tex_size = 4096
+tex_size = 2048
 max_res = 11
 
 
 # bounds = {}
+files = {}
 
 
 def path(i):
@@ -27,29 +28,35 @@ def load_file(res):
     size = fp.stat().st_size
     assert size % (n_channels * 2) == 0
     n_samples = int(round(size / (n_channels * 2)))
-    # duration = n_samples * 2.0 ** res / float(sample_rate)
-    print(f"Load file {res}")
-    out = np.memmap(fp, shape=(n_samples, n_channels), dtype=dtype)
-    # k = max(1, n_samples // 10_000)
-    # if res not in bounds:
-    #     print(f"computing bounds for res {res}...")
-    #     t = out[::k, :]
-    #     vmin = t.min()
-    #     vmax = t.max()
-    #     bounds[res] = (vmin, vmax)
-    # bounds[res] = (-5e-4, +5e-4)
+    out = np.memmap(fp, shape=(n_samples, n_channels), dtype=dtype, mode='r')
     return out
 
 
-def load_data(i0, i1):
+def safe_slice(data, i0, i1, fill_value=0):
+    n = i1 - i0
+    shape = (n,) + data.shape[1:]
+    result = np.full(shape, fill_value, dtype=data.dtype)
+
+    s0 = max(i0, 0)
+    s1 = min(i1, data.shape[0])
+    d0 = s0 - i0
+    d1 = d0 + (s1 - s0)
+
+    result[d0:d1] = data[s0:s1]
+    return result
+
+
+def load_data(res, i0, i1):
     assert i0 < i1
-    data = load_file(res)
+    if res not in files:
+        files[res] = load_file(res)
+    data = files[res]
     if data is None or data.size == 0:
         return
-    out = data[i0:i1, :]
+    # out = data[i0:i1, :]
+    out = safe_slice(data, i0, i1)
     if out.size == 0:
         return
-    # vmin, vmax = bounds[res]  # TODO
     vmin, vmax = (-5e-4, +5e-4)
     return dvz.to_byte(out, vmin, vmax)
 
@@ -94,15 +101,13 @@ def make_visual(x, y, w, h, tex, batch=None, panel=None):
 def update_image(res, i0, i1):
     if res < 0 or res > max_res:
         return None
-    if i1 - i0 > tex_size:
-        return None
-    image = load_data(i0, i1)
+    image = load_data(res, i0, i1)
     if image is None:
         print("Error loading data")
         return
     height, width = image.shape
     if (height > tex_size):
-        print("texture too big")
+        print("Texture too big")
         return None
     assert image.dtype == np.uint8
     assert width == n_channels
@@ -123,10 +128,10 @@ def get_extent(ref, panzoom=None):
     ymax = Out(0.0, 'double')
     dvz.panzoom_bounds(panzoom, ref, xmin, xmax, ymin, ymax)
     xmin, xmax, ymin, ymax = xmin.value, xmax.value, ymin.value, ymax.value
-    # w = xmax - xmin
-    # k = .5
-    # xmin -= k * w
-    # xmax += k * w
+    w = xmax - xmin
+    k = .5
+    xmin -= k * w
+    xmax += k * w
     return (xmin, xmax, ymin, ymax)
 
 
@@ -142,7 +147,7 @@ def update_image_position(visual, ref_ndc, panzoom=None):
     dvz.image_size(visual, 0, 1, size, 0)
 
 
-tmin, tmax = 0, 10
+tmin, tmax = 1000, 1500
 res = 11
 
 app = dvz.app(dvz.APP_FLAGS_WHITE_BACKGROUND)
@@ -151,7 +156,8 @@ scene = dvz.scene(batch)
 flags = dvz.CANVAS_FLAGS_IMGUI
 figure = dvz.figure(scene, 1200, 600, flags)
 panel = dvz.panel_default(figure)
-panzoom = dvz.panel_panzoom(panel, 0)
+panzoom = dvz.panel_panzoom(panel)
+dvz.panzoom_flags(panzoom, dvz.PANZOOM_FLAGS_FIXED_Y)
 
 ref = dvz.ref(0)
 dvz.ref_set(ref, dvz.DIM_X, tmin, tmax)
@@ -175,22 +181,19 @@ def onframe(app, fid, ev):
     global res, tmin, tmax
     new_tmin, new_tmax, _, _ = get_extent(ref, panzoom=panzoom)
 
-    zoom = dvz.panzoom_level(panzoom, dvz.DIM_X)
-    new_res = int(np.clip(round(max_res - np.log2(max(1, zoom))) - 3, 0, max_res))
+    # zoom = dvz.panzoom_level(panzoom, dvz.DIM_X)
+    # new_res = int(np.clip(round(max_res - np.log2(max(1, zoom))) - 3, 0, max_res))
 
-    # print(f"Zoom level {zoom:.2f}, possible res {new_res:d}")
-    # print(f"Current extent: [{tmin:.3f}, {tmax:.3f}]")
-
-    # for new_res in range(0, max_res + 1):
-    #     i0, i1 = find_indices(new_res, new_tmin, new_tmax)
-    #     if i1 - i0 <= tex_size:
-    #         print(i0, i1, new_res)
-    #         break
+    for new_res in range(0, max_res + 1):
+        i0, i1 = find_indices(new_res, new_tmin, new_tmax)
+        if i1 - i0 <= tex_size:
+            break
 
     if new_res != res or np.abs((new_tmin - tmin) / (tmax - tmin)) > .25:
         i0, i1 = find_indices(new_res, new_tmin, new_tmax)
         if update_image(new_res, i0, i1) is None:
             return
+        print(f"Update image, res {new_res}")
         update_image_position(visual, ref_ndc, panzoom=panzoom)
         dvz.visual_update(visual)
         res = new_res
