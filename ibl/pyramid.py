@@ -4,6 +4,7 @@ import datoviz as dvz
 from datoviz import Out, uvec3, ivec2
 
 
+CUR_DIR = Path(__file__).resolve().parent
 n_channels = 384
 sample_rate = 2500
 dtype = np.float16
@@ -18,7 +19,7 @@ files = {}
 
 
 def path(i):
-    return Path(f"pyramid/res_{i:02d}.bin")
+    return Path(CUR_DIR / f"pyramid/res_{i:02d}.bin")
 
 
 def load_file(res):
