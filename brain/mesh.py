@@ -1,3 +1,4 @@
+from iblatlas import atlas
 import ctypes
 import gzip
 from pathlib import Path
@@ -6,7 +7,7 @@ import urllib.request
 import numpy as np
 from pywavefront import Wavefront
 import datoviz as dvz
-from datoviz import vec2, ivec3, vec3, vec4, S_, A_, V_
+from datoviz import vec2, ivec3, vec3, vec4, Out
 
 
 CCF_URL = 'http://download.alleninstitute.org/informatics-archive/current-release/mouse_ccf/annotation/ccf_2017/structure_meshes/'
@@ -15,7 +16,6 @@ CCF_URL = 'http://download.alleninstitute.org/informatics-archive/current-releas
 # MOUSE_H = 456
 # MOUSE_D = 528
 
-from iblatlas import atlas
 a = atlas.AllenAtlas()
 
 xmin, xmax = a.bc.xlim  # ml
@@ -36,8 +36,10 @@ dz = zmax - zmin
 def norm_x(u):
     return (u - xc) * 50
 
+
 def norm_y(u):
     return (u - yc) * 50
+
 
 def norm_z(u):
     return (u - zc) * 50
@@ -112,7 +114,7 @@ def load_volume(batch):
     # volume shape (528, 456, 320, 4) ap=y ml=x dv=z
     # nx, ny, nz = (456, 528, 320)
     format = dvz.FORMAT_R8G8B8A8_UNORM
-    tex = dvz.tex_volume(batch, format, nz, nx, ny, A_(volume))
+    tex = dvz.tex_volume(batch, format, nz, nx, ny, volume)
     return tex
 
 
@@ -125,7 +127,7 @@ def add_volume(batch, panel):
         vec2(norm_x(xmin), norm_x(xmax)),
         vec2(norm_y(ymin), norm_y(ymax)),
         vec2(norm_z(zmin), norm_z(zmax)),
-        )
+    )
 
     dvz.volume_texcoords(visual, vec3(0, 1, 0), vec3(1, 0, 1))
     dvz.volume_transfer(visual, vec4(.5, 0, 0, 0))
@@ -161,30 +163,29 @@ def add_mesh(batch, panel, pos, idx, color):
 
 
 visual = None
-slider = V_(0, ctypes.c_float)
+slider = Out(0.0)
 
 
 @dvz.gui
 def ongui(app, fid, ev):
     dvz.gui_size(vec2(170, 110))
-    dvz.gui_begin(S_("Slider GUI"), 0)
-    with slider:
-        if dvz.gui_slider(S_("Slider"), 0, 1, slider.P_):
-            s = slider.value
+    dvz.gui_begin("Slider GUI", 0)
+    if dvz.gui_slider("Slider", 0, 1, slider):
+        s = slider.value
 
-            dvz.volume_bounds(
-                visual,
-                vec2(norm_x(xmin), norm_x(xmax)),
-                vec2(norm_y(ymin + s * dy), norm_y(ymax)),
-                vec2(norm_z(zmin), norm_z(zmax)),
-            )
-            dvz.volume_texcoords(visual, vec3(0, 1, 0), vec3(1, s, 1))
+        dvz.volume_bounds(
+            visual,
+            vec2(norm_x(xmin), norm_x(xmax)),
+            vec2(norm_y(ymin + s * dy), norm_y(ymax)),
+            vec2(norm_z(zmin), norm_z(zmax)),
+        )
+        dvz.volume_texcoords(visual, vec3(0, 1, 0), vec3(1, s, 1))
 
-            # NOTE: this is sort of working (displaying the opaque slice) but we'll need
-            # to implement multipass rendering to enable depth testing and proper transparency
-            # so this works fully.
-            # if s > 0:
-            #     dvz.volume_slice(visual, 4)
+        # NOTE: this is sort of working (displaying the opaque slice) but we'll need
+        # to implement multipass rendering to enable depth testing and proper transparency
+        # so this works fully.
+        # if s > 0:
+        #     dvz.volume_slice(visual, 4)
     dvz.gui_end()
 
 
@@ -205,7 +206,6 @@ if __name__ == '__main__':
     yy = norm_y(y)
     zz = norm_z(z)
     p2 = np.c_[xx, yy, zz].copy()
-
 
     # Start the app.
     app, batch, scene, figure, panel, arcball = start()

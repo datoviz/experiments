@@ -2,7 +2,7 @@ import gzip
 from pathlib import Path
 import numpy as np
 import datoviz as dvz
-from datoviz import vec2, vec3, vec4, S_, A_
+from datoviz import vec2, vec3, vec4
 
 
 MOUSE_W = 320
@@ -15,7 +15,7 @@ def load_volume(batch):
     with gzip.open(path, 'rb') as f:
         volume = np.load(f)
     format = dvz.FORMAT_R8G8B8A8_UNORM
-    tex = dvz.tex_volume(batch, format, MOUSE_W, MOUSE_H, MOUSE_D, A_(volume))
+    tex = dvz.tex_volume(batch, format, MOUSE_W, MOUSE_H, MOUSE_D, volume)
     return tex
 
 
@@ -52,7 +52,6 @@ arcball = dvz.panel_arcball(panel)
 # Add the volume.
 visual = add_volume(batch, panel)
 dvz.volume_texture(visual, tex, dvz.FILTER_LINEAR, dvz.SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE)
-
 
 
 # Initial arcball angles.
