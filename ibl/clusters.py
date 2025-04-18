@@ -4,6 +4,7 @@ from iblatlas import atlas
 import numpy as np
 from pywavefront import Wavefront
 import datoviz as dvz
+from datoviz import vec4
 
 
 # def hex_to_rgba(arr, alpha=255):
@@ -83,12 +84,18 @@ def add_mesh(batch, panel, pos, idx, color, alpha=255):
     dvz.compute_normals(nv, ni, pos, idx, normals)
 
     flags = dvz.VISUAL_FLAGS_INDEXED | dvz.MESH_FLAGS_LIGHTING
+
     visual = dvz.mesh(batch, flags)
     dvz.mesh_alloc(visual, nv, ni)
     dvz.mesh_position(visual, 0, nv, pos, 0)
     dvz.mesh_color(visual, 0, nv, color, 0)
     dvz.mesh_normal(visual, 0, nv, normals, 0)
     dvz.mesh_index(visual, 0, ni, idx, 0)
+
+    # dvz.visual_depth(visual, dvz.DEPTH_TEST_DISABLE)
+    dvz.visual_cull(visual, dvz.CULL_MODE_BACK)
+    # dvz.visual_blend(visual, dvz.BLEND_OIT)
+    # dvz.mesh_light_params(visual, 0, vec4(.75, .1, .1, 16))
 
     dvz.panel_visual(panel, visual, 0)
 
@@ -146,12 +153,12 @@ mesh_pos *= 200
 app = dvz.app(dvz.APP_FLAGS_WHITE_BACKGROUND)
 batch = dvz.app_batch(app)
 scene = dvz.scene(batch)
-figure = dvz.figure(scene, 800, 600, 0)
+figure = dvz.figure(scene, 1920, 1080, 0)
 panel = dvz.panel_default(figure)
 arcball = dvz.panel_arcball(panel)
 
 add_points(batch, panel, cluster_pos, cluster_color)
-add_mesh(batch, panel, mesh_pos, mesh_idx, mesh_color, alpha=100)
+add_mesh(batch, panel, mesh_pos, mesh_idx, mesh_color, alpha=32)
 
 dvz.scene_run(scene, app, 0)
 dvz.scene_destroy(scene)
