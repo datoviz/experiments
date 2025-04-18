@@ -155,7 +155,7 @@ app = dvz.app(dvz.APP_FLAGS_WHITE_BACKGROUND)
 batch = dvz.app_batch(app)
 scene = dvz.scene(batch)
 flags = dvz.CANVAS_FLAGS_IMGUI
-figure = dvz.figure(scene, 1200, 600, flags)
+figure = dvz.figure(scene, 1920, 1080, flags)
 panel = dvz.panel_default(figure)
 panzoom = dvz.panel_panzoom(panel)
 dvz.panzoom_flags(panzoom, dvz.PANZOOM_FLAGS_FIXED_Y)

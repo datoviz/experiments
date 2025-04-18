@@ -1,0 +1,5 @@
+signals
+venv
+*.pem
+*.o
+_old
