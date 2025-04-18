@@ -30,6 +30,7 @@ def load_file(res):
     assert size % (n_channels * 2) == 0
     n_samples = int(round(size / (n_channels * 2)))
     out = np.memmap(fp, shape=(n_samples, n_channels), dtype=dtype, mode='r')
+    print(f"Memmap file with shape {out.shape}")
     return out
 
 
