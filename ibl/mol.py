@@ -1,12 +1,12 @@
 import glob
 import numpy as np
-import MDAnalysis as mda
 import datoviz as dvz
 from datoviz import vec3, vec4
 
 
 def load_data():
     # comes from: https://www.rcsb.org/structure/6QZP
+    import MDAnalysis as mda
     files = sorted(glob.glob("mol/6qzp-pdb-bundle*.pdb"))
     universes = [mda.Universe(f) for f in files]
     print(set(atom.element for u in universes for atom in u.atoms))
