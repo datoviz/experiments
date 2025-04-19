@@ -1,21 +1,11 @@
+from datoviz import Out, vec2, cvec4
 import numpy as np
 import pandas as pd
 from pathlib import Path
 import numpy as np
-from ephys_atlas.features import voltage_features_set
-from ephys_atlas.data import load_voltage_features
-from iblatlas.regions import BrainRegions
-import urllib.request
-from iblatlas import atlas
-from pywavefront import Wavefront
 import datoviz as dvz
-from datoviz import Out, vec2, cvec4
 
 
-CCF_URL = 'http://download.alleninstitute.org/informatics-archive/current-release/mouse_ccf/annotation/ccf_2017/structure_meshes/'
-local_data_path = Path('/home/cyrille/GIT/IBL/paper-ephys-atlas/data')
-a = atlas.AllenAtlas()
-br = BrainRegions()
 mapping = 'Allen'
 label = 'latest'
 hemisphere = 'left'
@@ -129,7 +119,7 @@ def set_feature(idx):
     a, b = np.quantile(values, quantile), np.quantile(values, 1-quantile)
     channel_color = dvz.cmap(cmap, values, a, b)
     channel_color[:, 3] = point_alpha
-    dvz.point_color(points, 0, n, channel_color.astype(np.uint8), 0)
+    dvz.point_color(points, 0, channel_color.shape[0], channel_color.astype(np.uint8), 0)
 
 
 def set_label(text):
@@ -140,37 +130,60 @@ def set_label(text):
     )
 
 
-# Load EA data.
-df_voltage, df_channels, df_channels, df_probes = \
-    load_voltage_features(local_data_path.joinpath(label), mapping=mapping)
-df_voltage = lateralize_features(df_voltage)
-df_voltage.drop(
-    df_voltage[df_voltage[mapping + "_acronym"].isin(["void", "root"])].index, inplace=True)
-channel_pos = np.ascontiguousarray(df_voltage[['x', 'y', 'z']], dtype=np.float32)
-n = channel_pos.shape[0]
-print(f"Loaded {n} channels")
+to_save = ['features', 'channel_pos', 'channel_size', 'mesh_pos', 'mesh_idx', 'mesh_color']
 
-features = sorted(voltage_features_set())
-channel_size = np.full(n, point_size, dtype=np.float32)
+if not Path("ea.npz").exists():
+
+    from ephys_atlas.features import voltage_features_set
+    from ephys_atlas.data import load_voltage_features
+    from iblatlas.regions import BrainRegions
+    import urllib.request
+    from iblatlas import atlas
+    from pywavefront import Wavefront
+
+    CCF_URL = 'http://download.alleninstitute.org/informatics-archive/current-release/mouse_ccf/annotation/ccf_2017/structure_meshes/'
+    a = atlas.AllenAtlas()
+    br = BrainRegions()
+    local_data_path = Path('/home/cyrille/GIT/IBL/paper-ephys-atlas/data')
+    df_voltage, df_channels, df_channels, df_probes = \
+        load_voltage_features(local_data_path.joinpath(label), mapping=mapping)
+    df_voltage = lateralize_features(df_voltage)
+    df_voltage.drop(
+        df_voltage[df_voltage[mapping + "_acronym"].isin(["void", "root"])].index, inplace=True)
+    channel_pos = np.ascontiguousarray(df_voltage[['x', 'y', 'z']], dtype=np.float32)
+    n = channel_pos.shape[0]
+    print(f"Loaded {n} channels")
+
+    features = sorted(voltage_features_set())
+    channel_size = np.full(n, point_size, dtype=np.float32)
+
+    # Load mesh.
+    region_idx = 997
+    m = load_mesh(region_idx=region_idx)
+    mesh_pos = m['pos']
+    mesh_idx = m['idx']
+    mesh_color = m['color']
+    mesh_pos = a.ccf2xyz(mesh_pos, ccf_order='apdvml')
+    mesh_pos = np.ascontiguousarray(mesh_pos)
+    print(f"Loaded mesh with {mesh_pos.shape[0]} vertices and {mesh_idx.shape[0] // 3} faces")
+
+    # Normalization.
+    center = mesh_pos.mean(axis=0)
+    mesh_pos -= center
+    channel_pos -= center
+    channel_pos *= 200
+    mesh_pos *= 200
+
+    df_voltage.to_pickle("ea.pkl")
+    np.savez("ea.npz", **{name: globals()[name] for name in to_save})
 
 
-# Load mesh.
-region_idx = 997
-m = load_mesh(region_idx=region_idx)
-mesh_pos = m['pos']
-mesh_idx = m['idx']
-mesh_color = m['color']
-mesh_pos = a.ccf2xyz(mesh_pos, ccf_order='apdvml')
-mesh_pos = np.ascontiguousarray(mesh_pos)
-print(f"Loaded mesh with {mesh_pos.shape[0]} vertices and {mesh_idx.shape[0] // 3} faces")
+# Load data.
+df_voltage = pd.read_pickle('ea.pkl')
+data = np.load("ea.npz", allow_pickle=True)
+for name in to_save:
+    globals()[name] = data[name]
 
-
-# Normalization.
-center = mesh_pos.mean(axis=0)
-mesh_pos -= center
-channel_pos -= center
-channel_pos *= 200
-mesh_pos *= 200
 
 selected = Out(0)
 
@@ -179,7 +192,7 @@ selected = Out(0)
 def ongui(app, fid, ev):
     dvz.gui_size(vec2(300, 100))
     dvz.gui_begin("GUI", 0)
-    if dvz.gui_dropdown("Feature", len(features), features, selected, 0):
+    if dvz.gui_dropdown("Feature", len(features), list(map(str, features)), selected, 0):
         set_feature(selected.value)
         set_label(features[selected.value])
     dvz.gui_end()

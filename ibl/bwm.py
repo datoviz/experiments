@@ -1,30 +1,6 @@
 from pathlib import Path
-import urllib.request
-from iblatlas import atlas
 import numpy as np
-from pywavefront import Wavefront
 import datoviz as dvz
-from datoviz import vec4
-
-
-# def hex_to_rgba(arr, alpha=255):
-#     arr = np.char.lstrip(arr.astype(str), '#')
-#     rgba = np.zeros((arr.size, 4), dtype=np.uint8)
-#     for i, hex_str in enumerate(arr):
-#         if len(hex_str) == 6:
-#             rgba[i, :3] = [int(hex_str[j:j+2], 16) for j in (0, 2, 4)]
-#             rgba[i, 3] = alpha
-#         elif len(hex_str) == 8:
-#             rgba[i] = [int(hex_str[j:j+2], 16) for j in (0, 2, 4, 6)]
-#         else:
-#             raise ValueError(f"Invalid hex color: {hex_str}")
-#     return rgba
-
-
-CCF_URL = 'http://download.alleninstitute.org/informatics-archive/current-release/mouse_ccf/annotation/ccf_2017/structure_meshes/'
-CUR_DIR = Path(__file__).resolve().parent
-bwm_path = CUR_DIR / 'bwm.npz'
-a = atlas.AllenAtlas()
 
 
 def dl(atlas_id):
@@ -119,34 +95,52 @@ def add_points(batch, panel, pos, color, usize=5):
     return visual
 
 
-# Load BWM data.
-bwm = np.load(bwm_path, allow_pickle=True)
-cluster_color = bwm['color']
-cluster_pos = np.ascontiguousarray(bwm['pos'], dtype=np.float64)
-idx = bwm['atlas_id'] > 0
-cluster_pos = cluster_pos[idx]
-cluster_color = cluster_color[idx]
-n = cluster_pos.shape[0]
-print(f"Loaded {n} clusters")
+to_save = ['cluster_pos', 'cluster_color', 'mesh_pos', 'mesh_idx', 'mesh_color']
+if not Path("bwm.npz").exists():
 
+    import urllib.request
+    from iblatlas import atlas
 
-# Load mesh.
-region_idx = 997
-m = load_mesh(region_idx=region_idx)
-mesh_pos = m['pos']
-mesh_idx = m['idx']
-mesh_color = m['color']
-mesh_pos = a.ccf2xyz(mesh_pos, ccf_order='apdvml')
-mesh_pos = np.ascontiguousarray(mesh_pos)
-print(f"Loaded mesh with {mesh_pos.shape[0]} vertices and {mesh_idx.shape[0] // 3} faces")
+    from pywavefront import Wavefront
 
+    CCF_URL = 'http://download.alleninstitute.org/informatics-archive/current-release/mouse_ccf/annotation/ccf_2017/structure_meshes/'
+    CUR_DIR = Path(__file__).resolve().parent
+    bwm_path = CUR_DIR / 'bwm.npz'
+    a = atlas.AllenAtlas()
 
-# Normalization.
-center = mesh_pos.mean(axis=0)
-mesh_pos -= center
-cluster_pos -= center
-cluster_pos *= 200
-mesh_pos *= 200
+    # Load BWM data.
+    bwm = np.load(bwm_path, allow_pickle=True)
+    cluster_color = bwm['color']
+    cluster_pos = np.ascontiguousarray(bwm['pos'], dtype=np.float64)
+    idx = bwm['atlas_id'] > 0
+    cluster_pos = cluster_pos[idx]
+    cluster_color = cluster_color[idx]
+    n = cluster_pos.shape[0]
+    print(f"Loaded {n} clusters")
+
+    # Load mesh.
+    region_idx = 997
+    m = load_mesh(region_idx=region_idx)
+    mesh_pos = m['pos']
+    mesh_idx = m['idx']
+    mesh_color = m['color']
+    mesh_pos = a.ccf2xyz(mesh_pos, ccf_order='apdvml')
+    mesh_pos = np.ascontiguousarray(mesh_pos)
+    print(f"Loaded mesh with {mesh_pos.shape[0]} vertices and {mesh_idx.shape[0] // 3} faces")
+
+    # Normalization.
+    center = mesh_pos.mean(axis=0)
+    mesh_pos -= center
+    cluster_pos -= center
+    cluster_pos *= 200
+    mesh_pos *= 200
+
+    np.savez("bwm.npz", **{name: globals()[name] for name in to_save})
+
+# Load data.
+data = np.load("bwm.npz")
+for name in to_save:
+    globals()[name] = data[name]
 
 
 # Application.
