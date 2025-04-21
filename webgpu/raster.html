@@ -3,7 +3,7 @@
 
 <head>
     <meta charset="UTF-8">
-    <title>WebGPU Triangle</title>
+    <title>WebGPU demo</title>
     <style>
         body,
         html {
@@ -13,7 +13,7 @@
             justify-content: center;
             align-items: center;
             height: 100vh;
-            background-color: #222;
+            background-color: #fff;
         }
 
         canvas {
@@ -23,6 +23,7 @@
     </style>
 
     <!-- https://cx20.github.io/webgpu-test/libs/ -->
+    <script src="https://cdn.jsdelivr.net/npm/npyjs@0.5.2/dist/npyjs.min.js"></script>
     <script src="glslang.js"></script>
     <script src="twgsl.js"></script>
 
@@ -42,6 +43,55 @@
             return wgslCode;
         }
 
+        async function loadNpy(url) {
+            const response = await fetch(url);
+            const buffer = await response.arrayBuffer();
+            const view = new DataView(buffer);
+
+            // Check magic string
+            const magic = String.fromCharCode(...new Uint8Array(buffer, 0, 6));
+            if (magic !== '\x93NUMPY') {
+                throw new Error('Not a valid .npy file');
+            }
+
+            const majorVersion = view.getUint8(6);
+            const minorVersion = view.getUint8(7);
+            let headerLength;
+            if (majorVersion === 1) {
+                headerLength = view.getUint16(8, true); // Little-endian
+            } else if (majorVersion === 2) {
+                headerLength = view.getUint32(8, true);
+            } else {
+                throw new Error(`Unsupported .npy version ${majorVersion}.${minorVersion}`);
+            }
+
+            const headerStart = majorVersion === 1 ? 10 : 12;
+            const headerText = new TextDecoder().decode(new Uint8Array(buffer, headerStart, headerLength));
+            const headerText2 = headerText
+                .replace(/'/g, '"')       // Replace single quotes with double quotes
+                .replace('False', 'false')
+                .replace('True', 'true')
+                .replace(', }', '}')
+                .replace('(', '[')
+                .replace(/,\s*\)/, ']')   // Handle Python tuple
+                .replace(')', ']');
+            console.log(headerText2);
+            const header = JSON.parse(headerText2);
+
+            if (header.descr !== '<f4') {
+                throw new Error('Only little-endian float32 supported');
+            }
+            if (header.fortran_order) {
+                throw new Error('Fortran-ordered arrays are not supported');
+            }
+
+            // const dataOffset = headerStart + headerLength;
+            // const floatArray = new Float32Array(buffer, dataOffset);
+
+            // return floatArray;
+            return buffer;
+        }
+
         if (!navigator.gpu) {
             throw new Error("WebGPU not supported on this browser, are you using https?");
         }
@@ -58,67 +108,34 @@
             alphaMode: "opaque"
         });
 
-        let vertices = new ArrayBuffer(36);
-        let floatView = new Float32Array(vertices);
-        let uint8View = new Uint8Array(vertices);
-
-        // Positions.
-        const a = 1;
-
-        floatView[0] = -a;
-        floatView[1] = -a;
-
-        floatView[3] = +0;
-        floatView[4] = +a;
-
-        floatView[6] = +a;
-        floatView[7] = -a;
-
-        // Colors.
-        uint8View[12 * 0 + 8 + 0] = 255;
-        uint8View[12 * 0 + 8 + 0 + 3] = 255;
-
-        uint8View[12 * 1 + 8 + 1] = 255;
-        uint8View[12 * 1 + 8 + 1 + 2] = 255;
-
-        uint8View[12 * 2 + 8 + 2] = 255;
-        uint8View[12 * 2 + 8 + 2 + 1] = 255;
-
+        const vertices = await loadNpy('raster.npy'); // ArrayBuffer
+        const size = vertices.byteLength / 4;
+        const point_count = size / 2;
         const vertexBuffer = device.createBuffer({
             size: vertices.byteLength,
-            usage: GPUBufferUsage.VERTEX | GPUBufferUsage.COPY_DST,
-            mappedAtCreation: true
+            usage: GPUBufferUsage.VERTEX | GPUBufferUsage.COPY_DST
         });
-
-        // NOTE: need to pass an array view and not the ArrayBuffer here.
-        new Float32Array(vertexBuffer.getMappedRange()).set(floatView);
-
-        vertexBuffer.unmap();
+        device.queue.writeBuffer(vertexBuffer, 0, vertices);
 
         const vertexShaderCode = await glsl2wgsl(`
         #version 450
 
         layout(location = 0) in vec2 pos;
-        layout(location = 1) in vec4 color;
-
-        layout(location = 0) out vec4 out_color;
 
         void main()
         {
             gl_Position = vec4(pos, 0, 1);
-            out_color = color;
         }
         `, "vertex");
 
         const fragmentShaderCode = await glsl2wgsl(`
         #version 450
 
-        layout(location = 0) in vec4 in_color;
         layout(location = 0) out vec4 out_color;
 
         void main()
         {
-            out_color = in_color;
+            out_color = vec4(0, 0, 0, 0.25);
         }
         `, "fragment");
 
@@ -130,19 +147,33 @@
                 module: shaderModule(vertexShaderCode),
                 entryPoint: "main",
                 buffers: [{
-                    arrayStride: (2 + 1) * 4,
+                    arrayStride: 2 * 4,
                     attributes: [
                         { shaderLocation: 0, offset: 0, format: "float32x2" },
-                        { shaderLocation: 1, offset: 2 * 4, format: "unorm8x4" }
                     ]
                 }]
             },
             fragment: {
                 module: shaderModule(fragmentShaderCode),
                 entryPoint: "main",
-                targets: [{ format }]
+                targets: [{
+                    format,
+                    blend: {
+                        color: {
+                            srcFactor: "src-alpha",
+                            dstFactor: "one-minus-src-alpha",
+                            operation: "add"
+                        },
+                        alpha: {
+                            srcFactor: "one",
+                            dstFactor: "one-minus-src-alpha",
+                            operation: "add"
+                        }
+                    },
+                    writeMask: GPUColorWrite.ALL
+                }]
             },
-            primitive: { topology: "triangle-list" }
+            primitive: { topology: "point-list" }
         });
 
         const renderPassDescriptor = {
@@ -150,7 +181,7 @@
                 view: null,
                 loadOp: "clear",
                 storeOp: "store",
-                clearValue: { r: 0.0, g: 0.0, b: 0.0, a: 1.0 }
+                clearValue: { r: 1.0, g: 1.0, b: 1.0, a: 1.0 }
             }]
         };
 
@@ -160,10 +191,10 @@
             const passEncoder = commandEncoder.beginRenderPass(renderPassDescriptor);
             passEncoder.setPipeline(pipeline);
             passEncoder.setVertexBuffer(0, vertexBuffer);
-            passEncoder.draw(3);
+            passEncoder.draw(point_count);
             passEncoder.end();
             device.queue.submit([commandEncoder.finish()]);
-            requestAnimationFrame(frame);
+            // requestAnimationFrame(frame);
         }
 
         // Canvas resolution
@@ -186,7 +217,7 @@
             observer.observe(canvas, { box: 'content-box' });
         }
 
-        requestAnimationFrame(frame);
+        // requestAnimationFrame(frame);
     </script>
 </body>
 
