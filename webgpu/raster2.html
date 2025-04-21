@@ -1,0 +1,334 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Raster Experiment</title>
+</head>
+
+<body>
+    <canvas id="webgpu-canvas" width="800" height="600"></canvas>
+    <script type="module">
+        import datoviz from './datoviz.js';
+        import { wrapAll } from './wrappers.js';
+
+        const Module = await datoviz();
+        const dvz = wrapAll(Module);
+
+        // Helper for calling WASM functions with a JS TypedArray as pointer argument
+        function callWithHeapArray(Module, arr, fn, ...args) {
+            const nBytes = arr.length * arr.BYTES_PER_ELEMENT;
+            const ptr = Module._malloc(nBytes);
+            // Copy JS array to WASM heap
+            Module.HEAPF32.set(arr, ptr / 4);
+            // Call the function (replace the array argument with the pointer)
+            const result = fn(...args, ptr);
+            // Copy back if needed (for output arrays)
+            arr.set(Module.HEAPF32.subarray(ptr / 4, ptr / 4 + arr.length));
+            Module._free(ptr);
+            return result;
+        }
+
+        let panzoom = null;
+        let mouse = null;
+        let mvp = null; // Float32Array(48)
+        let mvpBuffer = null; // GPUBuffer for MVP
+        let dragging = false;
+        let lastMousePos = { x: 0, y: 0 };
+        let device, context, pipeline, vertexBuffer, point_count, format;
+
+        async function loadNpy(url) {
+            const response = await fetch(url);
+            const buffer = await response.arrayBuffer();
+            const view = new DataView(buffer);
+
+            // Check magic string
+            const magic = String.fromCharCode(...new Uint8Array(buffer, 0, 6));
+            if (magic !== '\x93NUMPY') {
+                throw new Error('Not a valid .npy file');
+            }
+
+            const majorVersion = view.getUint8(6);
+            const minorVersion = view.getUint8(7);
+            let headerLength;
+            if (majorVersion === 1) {
+                headerLength = view.getUint16(8, true); // Little-endian
+            } else if (majorVersion === 2) {
+                headerLength = view.getUint32(8, true);
+            } else {
+                throw new Error(`Unsupported .npy version ${majorVersion}.${minorVersion}`);
+            }
+
+            const headerStart = majorVersion === 1 ? 10 : 12;
+            const headerText = new TextDecoder().decode(new Uint8Array(buffer, headerStart, headerLength));
+            const headerText2 = headerText
+                .replace(/'/g, '"')       // Replace single quotes with double quotes
+                .replace('False', 'false')
+                .replace('True', 'true')
+                .replace(', }', '}')
+                .replace('(', '[')
+                .replace(/,\s*\)/, ']')   // Handle Python tuple
+                .replace(')', ']');
+            console.log(headerText2);
+            const header = JSON.parse(headerText2);
+
+            if (header.descr !== '<f4') {
+                throw new Error('Only little-endian float32 supported');
+            }
+            if (header.fortran_order) {
+                throw new Error('Fortran-ordered arrays are not supported');
+            }
+            const dataOffset = headerStart + headerLength;
+            return buffer.slice(dataOffset);
+        }
+
+        function getCanvasRelativeCoords(event, canvas) {
+            const rect = canvas.getBoundingClientRect();
+            return {
+                x: (event.clientX - rect.left) * canvas.width / rect.width,
+                y: (event.clientY - rect.top) * canvas.height / rect.height
+            };
+        }
+
+        function setupPanzoom(canvas) {
+            // Initialize panzoom and mouse with canvas size
+            panzoom = dvz.panzoom(canvas.width, canvas.height, 0);
+            mouse = dvz.mouse();
+
+            canvas.addEventListener('mousedown', (event) => {
+                dragging = true;
+                const pos = getCanvasRelativeCoords(event, canvas);
+                lastMousePos = pos;
+                dvz.mouse_press(mouse, pos.x, pos.y, event.button, 0); // mods=0 for now
+                dvz.panzoom_mouse(panzoom, mouse);
+                // updateMVP();
+                // frame();
+            });
+
+            canvas.addEventListener('mouseup', (event) => {
+                dragging = false;
+                const pos = getCanvasRelativeCoords(event, canvas);
+                dvz.mouse_release(mouse, pos.x, pos.y, event.button, 0);
+                dvz.panzoom_mouse(panzoom, mouse);
+                // updateMVP();
+                // frame();
+            });
+
+            canvas.addEventListener('mousemove', (event) => {
+                if (!dragging) return;
+                const pos = getCanvasRelativeCoords(event, canvas);
+                // console.log(pos);
+                dvz.mouse_move(mouse, pos.x, pos.y, 0);
+                dvz.panzoom_mouse(panzoom, mouse);
+                lastMousePos = pos;
+                // updateMVP();
+                // frame();
+            });
+
+            canvas.addEventListener('mouseleave', (event) => {
+                dragging = false;
+            });
+
+            // Add mouse wheel zoom
+            canvas.addEventListener('wheel', (event) => {
+                event.preventDefault();
+                const pos = getCanvasRelativeCoords(event, canvas);
+
+                // Prepare wheel direction as a vec2 (float[2])
+                const dir = new Float32Array([0, -event.deltaY / 100.0]);
+                console.log(dir);
+                const nBytes = dir.length * dir.BYTES_PER_ELEMENT;
+                const dirPtr = Module._malloc(nBytes);
+                Module.HEAPF32.set(dir, dirPtr / 4);
+
+                const center = new Float32Array([400, 0]);
+                const centerPtr = Module._malloc(nBytes);
+                Module.HEAPF32.set(center, centerPtr / 4);
+
+                // Call dvz_panzoom_zoom_wheel(DvzPanzoom* pz, vec2 dir, vec2 center_px)
+                dvz.panzoom_zoom_wheel(panzoom, dirPtr, centerPtr);
+
+                Module._free(dirPtr);
+                Module._free(centerPtr);
+
+                updateMVP();
+                frame();
+            }, { passive: false });
+        }
+
+        function updateMVP() {
+            if (!mvp) return;
+            // Use the helper for dvz_panzoom_mvp
+            callWithHeapArray(Module, mvp, dvz.panzoom_mvp, panzoom);
+            console.log(mvp);
+            if (!mvpBuffer) return;
+            device.queue.writeBuffer(mvpBuffer, 0, mvp);
+        }
+
+        function cleanupPanzoom() {
+            if (panzoom) dvz.panzoom_destroy(panzoom);
+            if (mouse) dvz.mouse_destroy(mouse);
+        }
+
+        // --- WebGPU setup and rendering ---
+        const canvas = document.getElementById('webgpu-canvas');
+        setupPanzoom(canvas);
+
+        if (!navigator.gpu) throw new Error("WebGPU not supported");
+        const adapter = await navigator.gpu.requestAdapter();
+        device = await adapter.requestDevice();
+        context = canvas.getContext('webgpu');
+        format = navigator.gpu.getPreferredCanvasFormat();
+        context.configure({ device, format, alphaMode: "opaque" });
+
+        // Load vertices (replace with your own logic)
+        const buffer = await loadNpy('raster.npy'); // ArrayBuffer
+        const size = buffer.byteLength / 4;
+        point_count = size / 2;
+        console.log(buffer.byteLength, size, point_count);
+        vertexBuffer = device.createBuffer({
+            size: buffer.byteLength,
+            usage: GPUBufferUsage.VERTEX | GPUBufferUsage.COPY_DST
+        });
+        device.queue.writeBuffer(vertexBuffer, 0, buffer);
+
+        mvp = new Float32Array(48);
+        mvp[0] = 1;
+        mvp[5] = 1;
+        mvp[10] = 1;
+        mvp[15] = 1;
+        mvpBuffer = device.createBuffer({
+            size: mvp.byteLength,
+            usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST
+        });
+
+        // Vertex shader with MVP uniform
+        const vertexShaderCode = `
+struct DvzMVP {
+    model : mat4x4<f32>,
+    view : mat4x4<f32>,
+    proj : mat4x4<f32>,
+};
+@group(0) @binding(0) var<uniform> mvp : DvzMVP;
+
+struct VertexInput {
+    @location(0) pos : vec2<f32>,
+};
+struct VertexOutput {
+    @builtin(position) Position : vec4<f32>,
+};
+@vertex
+fn main(input: VertexInput) -> VertexOutput {
+    var out: VertexOutput;
+    let p = vec4<f32>(input.pos, 0.0, 1.0);
+    out.Position = mvp.proj * mvp.view * mvp.model * p;
+    out.Position.y = p.y;
+    return out;
+}
+`;
+
+        const fragmentShaderCode = `
+@fragment
+fn main() -> @location(0) vec4<f32> {
+    return vec4<f32>(0.0, 0.0, 0.0, 0.25);
+}
+`;
+
+        const shaderModule = (code) => device.createShaderModule({ code });
+        pipeline = device.createRenderPipeline({
+            layout: "auto",
+            vertex: {
+                module: shaderModule(vertexShaderCode),
+                entryPoint: "main",
+                buffers: [{
+                    arrayStride: 2 * 4,
+                    attributes: [
+                        { shaderLocation: 0, offset: 0, format: "float32x2" },
+                    ]
+                }]
+            },
+            fragment: {
+                module: shaderModule(fragmentShaderCode),
+                entryPoint: "main",
+                targets: [{
+                    format,
+                    blend: {
+                        color: {
+                            srcFactor: "src-alpha",
+                            dstFactor: "one-minus-src-alpha",
+                            operation: "add"
+                        },
+                        alpha: {
+                            srcFactor: "one",
+                            dstFactor: "one-minus-src-alpha",
+                            operation: "add"
+                        }
+                    }
+                }]
+            },
+            primitive: { topology: "point-list" }
+        });
+
+        // MVP uniform buffer and bind group
+        updateMVP();
+        const bindGroup = device.createBindGroup({
+            layout: pipeline.getBindGroupLayout(0),
+            entries: [{
+                binding: 0,
+                resource: { buffer: mvpBuffer }
+            }]
+        });
+
+        const renderPassDescriptor = {
+            colorAttachments: [{
+                view: null,
+                loadOp: "clear",
+                storeOp: "store",
+                clearValue: { r: 1.0, g: 1.0, b: 1.0, a: 1.0 }
+            }]
+        };
+
+        function frame() {
+            renderPassDescriptor.colorAttachments[0].view = context.getCurrentTexture().createView();
+            const commandEncoder = device.createCommandEncoder();
+            const passEncoder = commandEncoder.beginRenderPass(renderPassDescriptor);
+            passEncoder.setPipeline(pipeline);
+            passEncoder.setBindGroup(0, bindGroup);
+            passEncoder.setVertexBuffer(0, vertexBuffer);
+            passEncoder.draw(point_count);
+            passEncoder.end();
+            device.queue.submit([commandEncoder.finish()]);
+        }
+
+        // // Canvas resize observer
+        // const observer = new ResizeObserver(entries => {
+        //     for (const entry of entries) {
+        //         const width = entry.devicePixelContentBoxSize?.[0].inlineSize ||
+        //             entry.contentBoxSize[0].inlineSize * devicePixelRatio;
+        //         const height = entry.devicePixelContentBoxSize?.[0].blockSize ||
+        //             entry.contentBoxSize[0].blockSize * devicePixelRatio;
+        //         const canvas = entry.target;
+        //         canvas.width = Math.max(1, Math.min(width, device.limits.maxTextureDimension2D));
+        //         canvas.height = Math.max(1, Math.min(height, device.limits.maxTextureDimension2D));
+        //         // Notify panzoom of new size
+        //         if (panzoom) dvz.panzoom_resize(panzoom, canvas.width, canvas.height);
+        //         updateMVP();
+        //         frame();
+        //     }
+        // });
+        // try {
+        //     observer.observe(canvas, { box: 'device-pixel-content-box' });
+        // } catch {
+        //     observer.observe(canvas, { box: 'content-box' });
+        // }
+
+        // Initial draw
+        frame();
+
+        window.addEventListener('beforeunload', cleanupPanzoom);
+
+    </script>
+</body>
+
+</html>

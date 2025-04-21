@@ -75,7 +75,7 @@
                 .replace('(', '[')
                 .replace(/,\s*\)/, ']')   // Handle Python tuple
                 .replace(')', ']');
-            console.log(headerText2);
+            // console.log(headerText2);
             const header = JSON.parse(headerText2);
 
             if (header.descr !== '<f4') {
@@ -85,11 +85,10 @@
                 throw new Error('Fortran-ordered arrays are not supported');
             }
 
-            // const dataOffset = headerStart + headerLength;
+            const dataOffset = headerStart + headerLength;
             // const floatArray = new Float32Array(buffer, dataOffset);
-
             // return floatArray;
-            return buffer;
+            return buffer.slice(dataOffset);
         }
 
         if (!navigator.gpu) {
