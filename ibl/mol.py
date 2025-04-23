@@ -79,7 +79,7 @@ dvz.sphere_light_params(visual, vec4(.4, .8, 2, 32))
 dvz.panel_visual(panel, visual, 0)
 
 
-@dvz.timer
+@dvz.on_timer
 def _on_timer(app, window_id, ev):
     t = ev.time
     z = 3 * np.exp(-.1 * np.mod(t, 10))
@@ -92,7 +92,7 @@ def _on_timer(app, window_id, ev):
 
 dvz.app_timer(app, 0, 1.0 / 60.0, 0)
 
-dvz.app_ontimer(app, _on_timer, None)
+dvz.app_on_timer(app, _on_timer, None)
 
 
 dvz.scene_run(scene, app, 0)

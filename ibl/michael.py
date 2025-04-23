@@ -15,7 +15,7 @@ def make_texture(batch, image):
 def add_image(x, y, w, h, image, batch=None, panel=None):
     pos = np.array([[x, y, 0]], dtype=np.float32)
     size = np.array([[w, h]], dtype=np.float32)
-    anchor = np.array([[0, 0]], dtype=np.float32)
+    anchor = np.array([[-1, 0]], dtype=np.float32)
     texcoords = np.array([[0, 0, 1, 1]], dtype=np.float32)
     tex = make_texture(batch, image)
     address_mode = dvz.SAMPLER_ADDRESS_MODE_CLAMP_TO_BORDER
@@ -71,10 +71,10 @@ ref = dvz.ref(0)
 dvz.ref_set(ref, dvz.DIM_X, 0, 1)
 dvz.ref_set(ref, dvz.DIM_Y, 0, 1)
 
-# @dvz.frame
+# @dvz.on_frame
 # def on_frame(app, window_id, ev):
 #     get_extent()
-# dvz.app_onframe(app, on_frame, None)
+# dvz.app_on_frame(app, on_frame, None)
 
 dvz.scene_run(scene, app, 0)
 dvz.scene_destroy(scene)

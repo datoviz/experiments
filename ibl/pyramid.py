@@ -82,7 +82,7 @@ def make_texture(batch, width, height):
 def make_visual(x, y, w, h, tex, batch=None, panel=None):
     pos = np.array([[x, y, 0]], dtype=np.float32)
     size = np.array([[w, h]], dtype=np.float32)
-    anchor = np.array([[0, 0]], dtype=np.float32)
+    anchor = np.array([[-1, +1]], dtype=np.float32)
 
     address_mode = dvz.SAMPLER_ADDRESS_MODE_CLAMP_TO_BORDER
     filter = dvz.FILTER_NEAREST
@@ -178,7 +178,7 @@ update_image(res, i0, i1)
 dvz.panel_visual(panel, visual, 0)
 
 
-@dvz.frame
+@dvz.on_frame
 def onframe(app, fid, ev):
     global res, tmin, tmax
     new_tmin, new_tmax, _, _ = get_extent(ref, panzoom=panzoom)
@@ -202,7 +202,7 @@ def onframe(app, fid, ev):
         tmin, tmax = new_tmin, new_tmax
 
 
-dvz.app_onframe(app, onframe, None)
+dvz.app_on_frame(app, onframe, None)
 
 dvz.scene_run(scene, app, 0)
 dvz.scene_destroy(scene)
