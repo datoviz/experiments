@@ -166,8 +166,8 @@ visual = None
 slider = Out(0.0)
 
 
-@dvz.gui
-def ongui(app, fid, ev):
+@dvz.on_gui
+def on_gui(app, fid, ev):
     dvz.gui_size(vec2(170, 110))
     dvz.gui_begin("Slider GUI", 0)
     if dvz.gui_slider("Slider", 0, 1, slider):
@@ -225,7 +225,7 @@ if __name__ == '__main__':
     dvz.camera_initial(camera, vec3(0, 0, 1.5), vec3(0, 0, 0), vec3(0, 1, 0))
     dvz.panel_update(panel)
 
-    dvz.app_gui(app, dvz.figure_id(figure), ongui, None)
+    dvz.app_gui(app, dvz.figure_id(figure), on_gui, None)
 
     # Run and exit the app.
     run(app, scene)

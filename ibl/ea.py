@@ -188,8 +188,8 @@ for name in to_save:
 selected = Out(0)
 
 
-@dvz.gui
-def ongui(app, fid, ev):
+@dvz.on_gui
+def on_gui(app, fid, ev):
     dvz.gui_size(vec2(300, 100))
     dvz.gui_begin("GUI", 0)
     if dvz.gui_dropdown("Feature", len(features), list(map(str, features)), selected, 0):
@@ -198,7 +198,7 @@ def ongui(app, fid, ev):
     dvz.gui_end()
 
 
-@dvz.keyboard
+@dvz.on_keyboard
 def on_keyboard(app, window_id, ev):
     if ev.type in (dvz.KEYBOARD_EVENT_PRESS, dvz.KEYBOARD_EVENT_REPEAT):
         if ev.key == dvz.KEY_LEFT:
@@ -231,8 +231,8 @@ set_label(features[0])
 dvz.panel_visual(panel, glyph, 0)
 
 
-dvz.app_gui(app, dvz.figure_id(figure), ongui, None)
-dvz.app_onkeyboard(app, on_keyboard, None)
+dvz.app_gui(app, dvz.figure_id(figure), on_gui, None)
+dvz.app_on_keyboard(app, on_keyboard, None)
 
 dvz.scene_run(scene, app, 0)
 dvz.scene_destroy(scene)

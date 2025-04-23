@@ -3,3 +3,5 @@ venv
 *.pem
 *.o
 _old
+*.np*
+*~
