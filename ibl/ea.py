@@ -200,6 +200,7 @@ def on_gui(app, fid, ev):
 
 @dvz.on_keyboard
 def on_keyboard(app, window_id, ev):
+    ev = ev.contents
     if ev.type in (dvz.KEYBOARD_EVENT_PRESS, dvz.KEYBOARD_EVENT_REPEAT):
         if ev.key == dvz.KEY_LEFT:
             selected.value = len(features) - 1 if selected.value == 0 else selected.value - 1
