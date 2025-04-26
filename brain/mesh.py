@@ -114,8 +114,10 @@ def load_volume(batch):
     # volume shape (528, 456, 320, 4) ap=y ml=x dv=z
     # nx, ny, nz = (456, 528, 320)
     format = dvz.FORMAT_R8G8B8A8_UNORM
-    tex = dvz.tex_volume(batch, format, nz, nx, ny, volume)
-    return tex
+    texture = dvz.texture_volume(
+        batch, format, dvz.FILTER_LINEAR,
+        dvz.SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE, nz, nx, ny, volume, 0)
+    return texture
 
 
 def add_volume(batch, panel):
@@ -211,9 +213,9 @@ if __name__ == '__main__':
     app, batch, scene, figure, panel, arcball = start()
 
     # Volume.
-    tex = load_volume(batch)
+    texture = load_volume(batch)
     visual = add_volume(batch, panel)
-    dvz.volume_texture(visual, tex, dvz.FILTER_LINEAR, dvz.SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE)
+    dvz.volume_texture(visual, texture)
 
     # Mesh.
     add_mesh(batch, panel, p2, idx, color)

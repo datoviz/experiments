@@ -15,8 +15,10 @@ def load_volume(batch):
     with gzip.open(path, 'rb') as f:
         volume = np.load(f)
     format = dvz.FORMAT_R8G8B8A8_UNORM
-    tex = dvz.tex_volume(batch, format, MOUSE_W, MOUSE_H, MOUSE_D, volume)
-    return tex
+    texture = dvz.texture_volume(
+        batch, format, dvz.FILTER_LINEAR,
+        dvz.SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE, MOUSE_W, MOUSE_H, MOUSE_D, volume, 0)
+    return texture
 
 
 def add_volume(batch, panel):
@@ -37,7 +39,7 @@ scene = dvz.scene(batch)
 
 
 # Load the volume texture.
-tex = load_volume(batch)
+texture = load_volume(batch)
 
 
 # Create a figure 800x600.
@@ -51,7 +53,7 @@ arcball = dvz.panel_arcball(panel)
 
 # Add the volume.
 visual = add_volume(batch, panel)
-dvz.volume_texture(visual, tex, dvz.FILTER_LINEAR, dvz.SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE)
+dvz.volume_texture(visual, texture)
 
 
 # Initial arcball angles.

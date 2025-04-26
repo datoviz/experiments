@@ -9,7 +9,7 @@ def make_texture(batch, image):
     format = dvz.FORMAT_R8_UNORM
     image *= .3
     normalized = dvz.to_byte(image, 0, 1)
-    return dvz.tex_image(batch, format, image.shape[1], image.shape[0], normalized, 0)
+    return dvz.texture_image(batch, format, dvz.FILTER_NEAREST, dvz.SAMPLER_ADDRESS_MODE_CLAMP_TO_BORDER, image.shape[1], image.shape[0], normalized, 0)
 
 
 def add_image(x, y, w, h, image, batch=None, panel=None):
@@ -17,9 +17,7 @@ def add_image(x, y, w, h, image, batch=None, panel=None):
     size = np.array([[w, h]], dtype=np.float32)
     anchor = np.array([[-1, 0]], dtype=np.float32)
     texcoords = np.array([[0, 0, 1, 1]], dtype=np.float32)
-    tex = make_texture(batch, image)
-    address_mode = dvz.SAMPLER_ADDRESS_MODE_CLAMP_TO_BORDER
-    filter = dvz.FILTER_NEAREST
+    texture = make_texture(batch, image)
 
     visual = dvz.image(
         batch, dvz.IMAGE_FLAGS_SIZE_NDC | dvz.IMAGE_FLAGS_RESCALE | dvz.IMAGE_FLAGS_MODE_COLORMAP)
@@ -29,7 +27,7 @@ def add_image(x, y, w, h, image, batch=None, panel=None):
     dvz.image_colormap(visual, dvz.CMAP_BINARY)
     dvz.image_anchor(visual, 0, 1, anchor, 0)
     dvz.image_texcoords(visual, 0, 1, texcoords, 0)
-    dvz.image_texture(visual, tex, filter, address_mode)
+    dvz.image_texture(visual, texture)
     dvz.panel_visual(panel, visual, 0)
 
 
