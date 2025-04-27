@@ -81,7 +81,7 @@ dvz.panel_visual(panel, visual, 0)
 
 @dvz.on_timer
 def _on_timer(app, window_id, ev):
-    t = ev.time
+    t = ev.contents.time
     z = 3 * np.exp(-.1 * np.mod(t, 10))
     angle = .025 * np.pi * 2 * t
 
@@ -90,7 +90,7 @@ def _on_timer(app, window_id, ev):
     dvz.panel_update(panel)
 
 
-dvz.app_timer(app, 0, 1.0 / 60.0, 0)
+# dvz.app_timer(app, 0, 1.0 / 60.0, 0)
 
 dvz.app_on_timer(app, _on_timer, None)
 
