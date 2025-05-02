@@ -67,62 +67,18 @@ def load_mesh(region_idx=315):
     return m
 
 
-def add_mesh(batch, panel, pos, idx, color, alpha=255):
-    nv = pos.shape[0]
-    ni = idx.size
-
-    pos = np.ascontiguousarray(pos, dtype=np.float32)
-    color = np.tile(color, (nv, 1)).astype(np.uint8)
-    color[:, 3] = alpha
-    idx = idx.astype(np.uint32).ravel()
-
-    normals = np.zeros((nv, 3), dtype=np.float32)
-    dvz.compute_normals(nv, ni, pos, idx, normals)
-
-    flags = dvz.VISUAL_FLAGS_INDEXED | dvz.MESH_FLAGS_LIGHTING
-
-    visual = dvz.mesh(batch, flags)
-    dvz.mesh_alloc(visual, nv, ni)
-    dvz.mesh_position(visual, 0, nv, pos, 0)
-    dvz.mesh_color(visual, 0, nv, color, 0)
-    dvz.mesh_normal(visual, 0, nv, normals, 0)
-    dvz.mesh_index(visual, 0, ni, idx, 0)
-
-    # dvz.visual_depth(visual, dvz.DEPTH_TEST_DISABLE)
-    dvz.visual_cull(visual, dvz.CULL_MODE_BACK)
-    # dvz.visual_blend(visual, dvz.BLEND_OIT)
-    # dvz.mesh_light_params(visual, 0, vec4(.75, .1, .1, 16))
-
-    dvz.panel_visual(panel, visual, 0)
-
-    return visual
-
-
-def add_points(batch, panel, pos, size):
-    n = pos.shape[0]
-    pos = np.ascontiguousarray(pos, dtype=np.float32)
-
-    visual = dvz.point(batch, 0)
-    dvz.visual_depth(visual, dvz.DEPTH_TEST_ENABLE)
-
-    dvz.point_alloc(visual, n)
-    dvz.point_position(visual, 0, n, pos.astype(np.float32), 0)
-    dvz.point_size(visual, 0, n, size.astype(np.float32), 0)
-    dvz.panel_visual(panel, visual, 0)
-
-    return visual
-
-
 def set_feature(idx):
     feature = features[idx]
     values = df_voltage[feature]
     a, b = np.quantile(values, quantile), np.quantile(values, 1-quantile)
     channel_color = dvz.cmap(cmap, values, a, b)
     channel_color[:, 3] = point_alpha
-    dvz.point_color(points, 0, channel_color.shape[0], channel_color.astype(np.uint8), 0)
+    point.set_color(channel_color)
 
 
 def set_label(text):
+    # TODO
+    return
     dvz.glyph_strings(
         glyph, 1, [text],
         np.array([[0, 1, 0]], dtype=np.float32), np.array([1], np.float32),
@@ -188,8 +144,48 @@ for name in to_save:
 selected = Out(0)
 
 
-@dvz.on_gui
-def on_gui(app, fid, ev):
+app = dvz.App(background='white')
+figure = app.figure(gui=True)
+panel = figure.panel()
+arcball = panel.arcball()
+
+
+# Points.
+n = channel_pos.shape[0]
+channel_pos = np.ascontiguousarray(channel_pos, dtype=np.float32)
+
+point = app.point(
+    depth_test=True,
+    position=channel_pos,
+    size=channel_size,
+)
+panel.add(point)
+
+
+# Mesh.
+nv = mesh_pos.shape[0]
+ni = mesh_idx.size
+
+mesh_pos = np.ascontiguousarray(mesh_pos, dtype=np.float32)
+mesh_color = np.tile(mesh_color, (nv, 1)).astype(np.uint8)
+mesh_color[:, 3] = 32
+mesh_idx = mesh_idx.astype(np.uint32).ravel()
+
+mesh = app.mesh(indexed=True, lighting=True, cull='back')
+mesh.set_data(
+    position=mesh_pos,
+    color=mesh_color,
+    index=mesh_idx,
+    compute_normals=True,
+)
+panel.add(mesh)
+
+
+set_feature(0)
+
+
+@app.connect(figure)
+def on_gui(ev):
     dvz.gui_size(vec2(300, 100))
     dvz.gui_begin("GUI", 0)
     if dvz.gui_dropdown("Feature", len(features), list(map(str, features)), selected, 0):
@@ -198,44 +194,28 @@ def on_gui(app, fid, ev):
     dvz.gui_end()
 
 
-@dvz.on_keyboard
-def on_keyboard(app, window_id, ev):
-    ev = ev.contents
-    if ev.type in (dvz.KEYBOARD_EVENT_PRESS, dvz.KEYBOARD_EVENT_REPEAT):
-        if ev.key == dvz.KEY_LEFT:
+@app.connect(figure)
+def on_keyboard(ev):
+    if ev.key_event() in ('press', 'repeat'):
+        if ev.key_name() == 'left':
             selected.value = len(features) - 1 if selected.value == 0 else selected.value - 1
             set_feature(selected.value)
             set_label(features[selected.value])
-        elif ev.key == dvz.KEY_RIGHT:
+        elif ev.key_name() == 'right':
             selected.value = 0 if selected.value == len(features) - 1 else selected.value + 1
             set_feature(selected.value)
             set_label(features[selected.value])
 
 
-# Application.
-app = dvz.app(dvz.APP_FLAGS_WHITE_BACKGROUND)
-batch = dvz.app_batch(app)
-scene = dvz.scene(batch)
-figure = dvz.figure(scene, 1920, 1080, dvz.CANVAS_FLAGS_IMGUI)
-panel = dvz.panel_default(figure)
-arcball = dvz.panel_arcball(panel)
-
-points = add_points(batch, panel, channel_pos, channel_size)
-mesh = add_mesh(batch, panel, mesh_pos, mesh_idx, mesh_color, alpha=32)
-set_feature(0)
-
-glyph = dvz.glyph(batch, 0)
-dvz.visual_fixed(glyph, True, True, True)
-af = dvz.AtlasFont()
-dvz.atlas_font(font_size, af)
-dvz.glyph_atlas_font(glyph, af)
-set_label(features[0])
-dvz.panel_visual(panel, glyph, 0)
+app.run()
+app.destroy()
 
 
-dvz.app_gui(app, dvz.figure_id(figure), on_gui, None)
-dvz.app_on_keyboard(app, on_keyboard, None)
-
-dvz.scene_run(scene, app, 0)
-dvz.scene_destroy(scene)
-dvz.app_destroy(app)
+# TODO
+# glyph = dvz.glyph(batch, 0)
+# dvz.visual_fixed(glyph, True, True, True)
+# af = dvz.AtlasFont()
+# dvz.atlas_font(font_size, af)
+# dvz.glyph_atlas_font(glyph, af)
+# set_label(features[0])
+# dvz.panel_visual(panel, glyph, 0)
