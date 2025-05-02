@@ -1,5 +1,7 @@
 from pathlib import Path
+
 import numpy as np
+
 import datoviz as dvz
 
 
@@ -45,54 +47,6 @@ def load_mesh(region_idx=315):
         np.savez(fn, **m)
         print(f"Saved {fn}")
     return m
-
-
-def add_mesh(batch, panel, pos, idx, color, alpha=255):
-    nv = pos.shape[0]
-    ni = idx.size
-
-    pos = np.ascontiguousarray(pos, dtype=np.float32)
-    color = np.tile(color, (nv, 1)).astype(np.uint8)
-    color[:, 3] = alpha
-    idx = idx.astype(np.uint32).ravel()
-
-    normals = np.zeros((nv, 3), dtype=np.float32)
-    dvz.compute_normals(nv, ni, pos, idx, normals)
-
-    flags = dvz.VISUAL_FLAGS_INDEXED | dvz.MESH_FLAGS_LIGHTING
-
-    visual = dvz.mesh(batch, flags)
-    dvz.mesh_alloc(visual, nv, ni)
-    dvz.mesh_position(visual, 0, nv, pos, 0)
-    dvz.mesh_color(visual, 0, nv, color, 0)
-    dvz.mesh_normal(visual, 0, nv, normals, 0)
-    dvz.mesh_index(visual, 0, ni, idx, 0)
-
-    # dvz.visual_depth(visual, dvz.DEPTH_TEST_DISABLE)
-    dvz.visual_cull(visual, dvz.CULL_MODE_BACK)
-    # dvz.visual_blend(visual, dvz.BLEND_OIT)
-    # dvz.mesh_light_params(visual, 0, vec4(.75, .1, .1, 16))
-
-    dvz.panel_visual(panel, visual, 0)
-
-    return visual
-
-
-def add_points(batch, panel, pos, color, usize=5):
-    n = pos.shape[0]
-    pos = np.ascontiguousarray(pos, dtype=np.float32)
-    size = np.full(n, usize, dtype=np.float32)
-
-    visual = dvz.point(batch, 0)
-    dvz.visual_depth(visual, dvz.DEPTH_TEST_ENABLE)
-
-    dvz.point_alloc(visual, n)
-    dvz.point_position(visual, 0, n, pos.astype(np.float32), 0)
-    dvz.point_color(visual, 0, n, color.astype(np.uint8), 0)
-    dvz.point_size(visual, 0, n, size, 0)
-    dvz.panel_visual(panel, visual, 0)
-
-    return visual
 
 
 to_save = ['cluster_pos', 'cluster_color', 'mesh_pos', 'mesh_idx', 'mesh_color']
@@ -143,17 +97,44 @@ for name in to_save:
     globals()[name] = data[name]
 
 
-# Application.
-app = dvz.app(dvz.APP_FLAGS_WHITE_BACKGROUND)
-batch = dvz.app_batch(app)
-scene = dvz.scene(batch)
-figure = dvz.figure(scene, 1920, 1080, 0)
-panel = dvz.panel_default(figure)
-arcball = dvz.panel_arcball(panel)
+app = dvz.App(background='white')
+figure = app.figure()
+panel = figure.panel()
+arcball = panel.arcball()
 
-add_points(batch, panel, cluster_pos, cluster_color)
-add_mesh(batch, panel, mesh_pos, mesh_idx, mesh_color, alpha=32)
 
-dvz.scene_run(scene, app, 0)
-dvz.scene_destroy(scene)
-dvz.app_destroy(app)
+# Points.
+n = cluster_pos.shape[0]
+cluster_pos = np.ascontiguousarray(cluster_pos, dtype=np.float32)
+size = np.full(n, 5, dtype=np.float32)
+
+visual = app.point(
+    depth_test=True,
+    position=cluster_pos,
+    color=cluster_color,
+    size=size,
+)
+panel.add(visual)
+
+
+# Mesh.
+nv = mesh_pos.shape[0]
+ni = mesh_idx.size
+
+mesh_pos = np.ascontiguousarray(mesh_pos, dtype=np.float32)
+mesh_color = np.tile(mesh_color, (nv, 1)).astype(np.uint8)
+mesh_color[:, 3] = 32
+mesh_idx = mesh_idx.astype(np.uint32).ravel()
+
+visual = app.mesh(indexed=True, lighting=True, cull='back')
+visual.set_data(
+    position=mesh_pos,
+    color=mesh_color,
+    index=mesh_idx,
+    compute_normals=True,
+)
+panel.add(visual)
+
+
+app.run()
+app.destroy()
