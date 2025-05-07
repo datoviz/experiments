@@ -1,7 +1,6 @@
 from pathlib import Path
 import numpy as np
 import datoviz as dvz
-from datoviz import Out, uvec3, ivec2
 
 
 CUR_DIR = Path(__file__).resolve().parent
@@ -29,7 +28,7 @@ def load_file(res):
     size = fp.stat().st_size
     assert size % (n_channels * 2) == 0
     n_samples = int(round(size / (n_channels * 2)))
-    out = np.memmap(fp, shape=(n_samples, n_channels), dtype=dtype, mode='r')
+    out = np.memmap(fp, shape=(n_samples, n_channels), dtype=dtype, mode="r")
     print(f"Memmap file with shape {out.shape}")
     return out
 
@@ -68,35 +67,39 @@ def find_indices(res, t0, t1):
     assert res <= max_res
     res, t0, t1
     assert t0 < t1
-    i0 = int(round(t0 * sample_rate / 2.0 ** res))
-    i1 = int(round(t1 * sample_rate / 2.0 ** res))
+    i0 = int(round(t0 * sample_rate / 2.0**res))
+    i1 = int(round(t1 * sample_rate / 2.0**res))
     return i0, i1
 
 
-def make_texture(batch, width, height):
-    format = dvz.FORMAT_R8_UNORM
-    tex = dvz.create_tex(batch, dvz.TEX_2D, format, uvec3(width, height, 1), 0).id
-    return tex
+# -------------------------------------------------------------------------------------------------
 
 
-def make_visual(x, y, w, h, tex, batch=None, panel=None):
-    pos = np.array([[x, y, 0]], dtype=np.float32)
-    size = np.array([[w, h]], dtype=np.float32)
-    anchor = np.array([[-1, +1]], dtype=np.float32)
+def make_texture(app, width, height):
+    texture = app.texture(ndim=2, shape=(width, height), n_channels=1, dtype=np.uint8)
+    return texture
 
-    address_mode = dvz.SAMPLER_ADDRESS_MODE_CLAMP_TO_BORDER
-    filter = dvz.FILTER_NEAREST
 
-    visual = dvz.image(
-        batch, dvz.IMAGE_FLAGS_SIZE_NDC | dvz.IMAGE_FLAGS_RESCALE | dvz.IMAGE_FLAGS_MODE_COLORMAP)
-    dvz.image_alloc(visual, 1)
-    dvz.image_position(visual, 0, 1, pos, 0)
-    dvz.image_size(visual, 0, 1, size, 0)
-    dvz.image_colormap(visual, dvz.CMAP_BINARY)
-    dvz.image_permutation(visual, ivec2(1, 0))
-    dvz.image_anchor(visual, 0, 1, anchor, 0)
-    dvz.image_texture(visual, tex, filter, address_mode)
-
+def make_visual(x, y, w, h, texture, app=None):
+    # x, y in data coordinates
+    # w, h in NDC
+    x = np.atleast_2d([x])
+    y = np.atleast_2d([y])
+    size = np.array([[w, h]])
+    anchor = np.array([[-1.0, +1.0]])
+    position = axes.normalize(x, y)
+    # position = np.array([[-1, +1, 0]])
+    visual = app.image(
+        position=position,
+        size=size,
+        anchor=anchor,
+        texture=texture,
+        permutation=(1, 0),
+        rescale=True,
+        unit="ndc",
+        mode="colormap",
+        colormap="binary",
+    )
     return visual
 
 
@@ -108,103 +111,82 @@ def update_image(res, i0, i1):
         print("Error loading data")
         return
     height, width = image.shape
-    if (height > tex_size):
+    if height > tex_size:
         print("Texture too big")
         return None
     assert image.dtype == np.uint8
     assert width == n_channels
     assert height <= tex_size
-    dvz.upload_tex(batch, tex, uvec3(0, 0, 0), uvec3(width, height, 1), image.size, image, 0)
+    texture.data(image)
 
     t = (i1 - i0) / float(tex_size)
     texcoords = np.array([[0, 0, t, 1]], dtype=np.float32)
-    dvz.image_texcoords(visual, 0, 1, texcoords, 0)
+    visual.set_texcoords(texcoords)
 
     return True
 
 
-def get_extent(ref, panzoom=None):
-    xmin = Out(0.0, 'double')
-    xmax = Out(0.0, 'double')
-    ymin = Out(0.0, 'double')
-    ymax = Out(0.0, 'double')
-    dvz.panzoom_bounds(panzoom, ref, xmin, xmax, ymin, ymax)
-    xmin, xmax, ymin, ymax = xmin.value, xmax.value, ymin.value, ymax.value
+def get_extent(axes):
+    (xmin, xmax), (ymin, ymax) = axes.bounds()
     w = xmax - xmin
-    k = .5
+    k = 0.5
     xmin -= k * w
     xmax += k * w
     return (xmin, xmax, ymin, ymax)
 
 
-def update_image_position(visual, ref_ndc, panzoom=None):
-    xmin, xmax, _, _ = get_extent(ref_ndc, panzoom=panzoom)
-    x = xmin
-    w = xmax - xmin
+def update_image_position(visual, axes):
+    xmin, xmax, ymin, ymax = get_extent(axes)
 
-    pos = np.array([[x, 1, 0]], dtype=np.float32)
-    size = np.array([[w, 2]], dtype=np.float32)
+    p = axes.normalize(np.array([[xmin], [xmax]]), np.array([[ymin], [ymax]]))
+    w_ndc = p[1][0] - p[0][0]
+    h_ndc = p[1][1] - p[0][1]
 
-    dvz.image_position(visual, 0, 1, pos, 0)
-    dvz.image_size(visual, 0, 1, size, 0)
+    x = np.array([[xmin]], dtype=np.float64)
+    y = np.array([[n_channels]], dtype=np.float64)
+    size = np.array([[w_ndc, h_ndc]], dtype=np.float32)
+
+    visual.set_data(position=axes.normalize(x, y), size=size)
 
 
-tmin, tmax = 1000, 1500
+tmin, tmax = 1000.0, 1500.0
 res = 11
 
-app = dvz.app(dvz.APP_FLAGS_WHITE_BACKGROUND)
-batch = dvz.app_batch(app)
-scene = dvz.scene(batch)
-flags = dvz.CANVAS_FLAGS_IMGUI
-figure = dvz.figure(scene, 1920, 1080, flags)
-panel = dvz.panel_default(figure)
-panzoom = dvz.panel_panzoom(panel)
-dvz.panzoom_flags(panzoom, dvz.PANZOOM_FLAGS_FIXED_Y)
+app = dvz.App(background="white")
+figure = app.figure()
+panel = figure.panel()
+panzoom = panel.panzoom(fixed="y")
+axes = panel.axes((tmin, tmax), (0, n_channels))
 
-ref = dvz.ref(0)
-dvz.ref_set(ref, dvz.DIM_X, tmin, tmax)
-dvz.ref_set(ref, dvz.DIM_Y, 0, n_channels)
-
-ref_ndc = dvz.ref(0)
-dvz.ref_set(ref_ndc, dvz.DIM_X, -1, 1)
-dvz.ref_set(ref_ndc, dvz.DIM_Y, -1, 1)
-
-tex = make_texture(batch, n_channels, tex_size)
-visual = make_visual(-1, 1, 2, 2, tex, batch=batch, panel=panel)
+texture = make_texture(app, n_channels, tex_size)
+visual = make_visual(tmin, n_channels, 2.0, 2.0, texture, app=app)
 
 i0, i1 = find_indices(res, tmin, tmax)
 assert i1 - i0 <= tex_size
 update_image(res, i0, i1)
-dvz.panel_visual(panel, visual, 0)
+panel.add(visual)
 
 
-@dvz.on_frame
-def onframe(app, fid, ev):
+@app.connect(figure)
+def on_frame(ev):
     global res, tmin, tmax
-    new_tmin, new_tmax, _, _ = get_extent(ref, panzoom=panzoom)
-
-    # zoom = dvz.panzoom_level(panzoom, dvz.DIM_X)
-    # new_res = int(np.clip(round(max_res - np.log2(max(1, zoom))) - 3, 0, max_res))
+    new_tmin, new_tmax, _, _ = get_extent(axes)
 
     for new_res in range(0, max_res + 1):
         i0, i1 = find_indices(new_res, new_tmin, new_tmax)
         if i1 - i0 <= tex_size:
             break
 
-    if new_res != res or np.abs((new_tmin - tmin) / (tmax - tmin)) > .25:
+    if new_res != res or np.abs((new_tmin - tmin) / (tmax - tmin)) > 0.25:
         i0, i1 = find_indices(new_res, new_tmin, new_tmax)
         if update_image(new_res, i0, i1) is None:
             return
         print(f"Update image, res {new_res}")
-        update_image_position(visual, ref_ndc, panzoom=panzoom)
-        dvz.visual_update(visual)
+        update_image_position(visual, axes)
+        visual.update()
         res = new_res
         tmin, tmax = new_tmin, new_tmax
 
 
-dvz.app_on_frame(app, onframe, None)
-
-dvz.scene_run(scene, app, 0)
-dvz.scene_destroy(scene)
-dvz.app_destroy(app)
-dvz.ref_destroy(ref)
+app.run()
+app.destroy()
