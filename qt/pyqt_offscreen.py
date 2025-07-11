@@ -9,6 +9,8 @@ NOTE: this API is experimental and will change in an upcoming release.
 
 import sys
 
+import numpy as np
+
 try:
     from PyQt6.QtCore import Qt
     from PyQt6.QtWidgets import QApplication, QMainWindow, QSplitter
@@ -32,17 +34,30 @@ class ExampleWindow(QMainWindow):
 
         # Create two figures (special Qt widgets with a Datoviz figure).
         w, h = WIDTH // 2, HEIGHT
-        self.qt_figure1 = self.qt_server.create_figure(w, h)
-        self.qt_figure2 = self.qt_server.create_figure(w, h)
+        self.qfig1 = self.qt_server.figure(w, h)
+        self.qfig2 = self.qt_server.figure(w, h)
 
-        # Fill the figures with mock data.
-        dvz.demo_panel_2D(dvz.panel(self.qt_figure1.figure, 0, 0, w, h))
-        dvz.demo_panel_2D(dvz.panel(self.qt_figure2.figure, 0, 0, w, h))
+        panel1 = self.qfig1.panel((0, 0), (w, h))
+        panel1.demo_3D()
+
+        panel2 = self.qfig2.panel((0, 0), (w, h))
+        N = 5
+        colors = dvz.cmap('spring', np.linspace(0, 1, N))
+        scale = 0.35
+        sc = dvz.ShapeCollection()
+        sc.add_tetrahedron(offset=(-1, 0.5, -0.5), scale=scale, color=colors[0])
+        sc.add_hexahedron(offset=(0, 0.5, -0.5), scale=scale, color=colors[1])
+        sc.add_octahedron(offset=(1, 0.5, -0.5), scale=scale, color=colors[2])
+        sc.add_dodecahedron(offset=(-0.5, -0.5, 0), scale=scale, color=colors[3])
+        sc.add_icosahedron(offset=(+0.5, -0.5, 0), scale=scale, color=colors[4])
+        panel2.arcball()
+        visual = self.qt_server.mesh(sc, lighting=True)
+        panel2.add(visual)
 
         # Add the two figures in the main window.
         splitter = QSplitter(Qt.Orientation.Horizontal)
-        splitter.addWidget(self.qt_figure1)
-        splitter.addWidget(self.qt_figure2)
+        splitter.addWidget(self.qfig1)
+        splitter.addWidget(self.qfig2)
         splitter.setCollapsible(0, False)
         splitter.setCollapsible(1, False)
         self.setCentralWidget(splitter)
